@@ -75,7 +75,7 @@ If you would like a compiled executable, I've compiled the python into an execut
    --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
    kpp.py
    ```
-The file can be found in ![Compiled KPP](screenshots/).
+The file can be found in ![Compiled KPP](compiled/). The checksum is included as well.
 
 ## Contributing
 
