@@ -61,7 +61,7 @@ This script requires the following Python libraries:
 ![Main GUI - Filled In](screenshots/KPP-App-Screenshot-Filled_In.png)
 
 ### Sample PDF Report
-![Download Sample PDF](docs/KPP-App-Example-PDF.pdf)
+![Sample PDF - view in /docs](docs/KPP-App-Example-PDF.pdf)
 
 
 ## Contributing
