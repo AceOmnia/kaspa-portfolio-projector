@@ -1,7 +1,6 @@
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
-import re
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
@@ -12,18 +11,15 @@ from PIL import Image, ImageTk
 # Path to the Kaspa logo
 LOGO_PATH_LIGHT_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Full-Color.png"
 LOGO_PATH_DARK_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Reverse.png"
-
-# Function to sanitize filenames (removes special characters)
-def clean_filename(name):
-    return re.sub(r'[^a-zA-Z0-9_-]', '_', name)
+ICON_PATH = r"pics\kaspa.ico"
 
 # Function to generate price intervals
 def generate_price_intervals(current_price):
     rounded_cent = round(current_price, 2)
     black_row_price = rounded_cent
-    red_intervals = np.linspace(black_row_price - 0.01, 0.05, num=7).tolist()
+    red_intervals = np.linspace(0.05, black_row_price - 0.01, num=7).tolist() # 7 evenly distributed intervals down to 5 cents
     black_interval = [black_row_price]
-    green_intervals = np.geomspace(black_row_price + 0.01, 100, num=50).tolist()
+    green_intervals = np.geomspace(black_row_price + 0.01, 200, num=60).tolist() # 60 logarithmically distributed intervals up to $200 KAS
     price_intervals = sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
     return price_intervals
 
@@ -43,61 +39,90 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
     return pd.DataFrame(data)
 
 # Function to generate the PDF report
-def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion, purchase_price=None):
+
+def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion,
+                           purchase_price=None):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    # Add logo to the PDF (Ensure the path is correct)
-    pdf.image(LOGO_PATH_LIGHT_BACKGROUND, x=10, y=10, w=40)
-    pdf.ln(20)
+    # Add Logo - Center it for better appearance
+    pdf.image(LOGO_PATH_LIGHT_BACKGROUND, x=80, y=10, w=50)
+    pdf.ln(25)
 
-    # Title
-    pdf.set_font("Arial", style='B', size=16)
+    # Title - Make it stand out
+    pdf.set_font("Helvetica", style='B', size=22)
     pdf.cell(200, 10, title, ln=True, align='C')
+    pdf.ln(5)
+
+    # Add a subtle separator
+    pdf.set_draw_color(200, 200, 200)  # Light grey line
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(10)
 
-    # Portfolio Facts
+    # Portfolio Facts - Better alignment
     circulating_supply = circulating_supply_billion * 1_000_000_000
     market_cap = current_price * circulating_supply
     portfolio_value = kaspa_amount * current_price
     price_needed_for_million = 1_000_000 / kaspa_amount
     market_cap_at_million = (market_cap / current_price) * price_needed_for_million
 
-    pdf.set_font("Arial", style='B', size=12)
+    pdf.set_font("Helvetica", style='B', size=14)
     pdf.cell(200, 8, "Portfolio Facts", ln=True, align='L')
-    pdf.ln(3)
+    pdf.ln(4)
 
-    pdf.set_font("Arial", size=11)
-    pdf.cell(200, 8, f"Total KAS Holdings: {kaspa_amount:,}", ln=True, align='L')
-    pdf.cell(200, 8, f"Portfolio Value: ${portfolio_value:,.2f}", ln=True, align='L')
-    pdf.cell(200, 8, f"Current Market Cap: ${market_cap:,.2f}", ln=True, align='L')
-    pdf.cell(200, 8, f"Price Needed for $1M: ${price_needed_for_million:.2f}", ln=True, align='L')
-    pdf.cell(200, 8, f"Market Cap at $1M: ${market_cap_at_million:,.2f}", ln=True, align='L')
+    pdf.set_font("Helvetica", size=11)
+    cell_width = 90
+    spacing = 7
+
+    # Using a cleaner layout with tabular alignment
+    data = [
+        ("Current KAS Holdings:", f"{kaspa_amount:,} KAS"),
+        ("Current KAS Portfolio Value:", f"${portfolio_value:,.2f}"),
+        ("Current KAS Market Cap:", f"${market_cap:,.2f}"),
+        ("KAS Price Needed for $1M Portfolio:", f"${price_needed_for_million:,.2f}"),
+        ("KAS Market Cap Needed for $1M Portfolio:", f"${market_cap_at_million:,.2f}")
+    ]
+
+    for label, value in data:
+        pdf.cell(cell_width, spacing, label, ln=False, align='L')
+        pdf.cell(0, spacing, value, ln=True, align='R')
 
     if purchase_price:
-        pdf.cell(200, 8, f"Breakeven Price: ${purchase_price:.2f}", ln=True, align='L')
+        pdf.cell(cell_width, spacing, "KAS Portfolio Breakeven Price (per KAS):", ln=False, align='L')
+        pdf.cell(0, spacing, f"${purchase_price:.2f}", ln=True, align='R')
 
-    pdf.ln(10)
+    pdf.ln(8)
 
-    # Table header
-    pdf.set_font("Arial", style='B', size=10)
-    pdf.cell(50, 10, "Kaspa Price ($)", border=1, align='C')
-    pdf.cell(70, 10, "Portfolio Value ($)", border=1, align='C')
-    pdf.cell(70, 10, "Market Cap ($)", border=1, align='C')
+    # Table Header with Bold Styling
+    pdf.set_font("Helvetica", style='B', size=11)
+    pdf.set_fill_color(230, 230, 230)  # Light gray background for headers
+    pdf.cell(50, 10, "Kaspa Price ($)", border=1, align='C', fill=True)
+    pdf.cell(70, 10, "Portfolio Value ($)", border=1, align='C', fill=True)
+    pdf.cell(70, 10, "Market Cap ($)", border=1, align='C', fill=True)
     pdf.ln()
 
-    # Table data
-    pdf.set_font("Arial", size=10)
+    # Table Data - Adjust text colors dynamically
+    pdf.set_font("Helvetica", size=10)
     for _, row in df.iterrows():
-        pdf.set_text_color(255, 0, 0) if row["Color"] == "red" else pdf.set_text_color(0, 0, 0) if row["Color"] == "black" else pdf.set_text_color(0, 128, 0)
+        # Set color based on row condition
+        if row["Color"] == "red":
+            pdf.set_text_color(255, 0, 0)  # Red
+        elif row["Color"] == "black":
+            pdf.set_text_color(0, 0, 0)  # Black
+        else:
+            pdf.set_text_color(0, 128, 0)  # Green
+
         pdf.cell(50, 10, row["Kaspa Price ($)"], border=1, align='C')
         pdf.cell(70, 10, row["Portfolio Value ($)"], border=1, align='C')
         pdf.cell(70, 10, row["Market Cap ($)"], border=1, align='C')
         pdf.ln()
 
+    # Reset text color to default
+    pdf.set_text_color(0, 0, 0)
+
     pdf.output(filename)
-    messagebox.showinfo("Success", f"PDF saved as {filename}.")
+    messagebox.showinfo("Success", f"PDF saved at {filename}.")
 
 # Function to generate the PDF on button click
 def generate_pdf():
@@ -113,12 +138,6 @@ def generate_pdf():
             purchase = None  # Treat as empty if placeholder is still there
         else:
             purchase = float(purchase)  # Convert to float if user entered a value
-
-        cleaned_name = clean_filename(portfolio)
-        #filename = f"{cleaned_name}_Portfolio_Projection.pdf"
-
-        #df = generate_portfolio_projection(kaspa, price, supply)
-        #generate_portfolio_pdf(df, filename, f"{portfolio} Portfolio Projection", kaspa, price, supply, purchase)
 
         file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")], title="Save PDF As")
         if not file_path:
@@ -139,6 +158,7 @@ def create_gui():
     root.title("Kaspa Portfolio Projection (KPP)")
     root.geometry("600x680")  # Adjusted for better layout
     root.configure(bg="#70C7BA")  # Dark teal background
+    root.iconbitmap(ICON_PATH) # Change window icon
 
     # Create Styles
     style = ttk.Style()
@@ -191,7 +211,7 @@ def create_gui():
     # Create Input Fields with Examples
     portfolio_name = add_input("Portfolio Name:", 1, "e.g., My Kaspa Holdings")
     kaspa_amount = add_input("Total KAS Holdings:", 2, "e.g., 1367 (aka 1367 KAS)")
-    current_price = add_input("Current KAS Price ($):", 3, "e.g., 0.1211 (aka 12.11 cents)")
+    current_price = add_input("Current KAS Price ($):", 3, "e.g., 0.2711 (aka 27.11 cents)")
     circulating_supply = add_input("Circulating Supply (Billions):", 4, "e.g., 25.6 (aka 25,600,000,000 KAS)")
     purchase_price = add_input("Avg Purchase Price (Optional):", 5, "e.g., 0.1735 (aka 17.35 cents)")
 
@@ -202,8 +222,8 @@ def create_gui():
     generate_button.grid(row=6, columnspan=2, pady=25)  # Centered with better spacing
 
     # Add Text Below the Button
-    info_label = ttk.Label(frame, text="App generated by Kaspa community member.",
-                           foreground="#70C7BA", background="#231F20", font=("Arial", 9))
+    info_label = ttk.Label(frame, text="Developed open-source by Kaspa community member.",
+                           foreground="#70C7BA", background="#231F20", font=("Arial", 10))
     info_label.grid(row=7, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
 
     root.mainloop()
