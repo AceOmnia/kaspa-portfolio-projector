@@ -1,4 +1,4 @@
-# Kaspa Portfolio Projection (KPP)
+# Kaspa Portfolio Projection (KPP) - GUI Application
 
 A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report.
 
@@ -56,7 +56,13 @@ This script requires the following Python libraries:
 
 ## Screenshots
 
-See 'screenshots' folder.
+### Main Application GUI
+![Main GUI](screenshots/KPP-App-Screenshot.png)
+![Main GUI - Filled In](screenshots/KPP-App-Screenshot-Filled_In.png)
+
+### Sample PDF Report
+![Download Sample PDF](docs/KPP-App-Example-PDF.pdf)
+
 
 ## Contributing
 
