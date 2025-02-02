@@ -1,12 +1,58 @@
+"""
+kaspa_portfolio_projection.py
+=============================
+
+A Python application for generating Kaspa portfolio projections and reports.
+
+This script provides a graphical user interface (GUI) for users to input their Kaspa holdings,
+current market price, and circulating supply to generate a detailed portfolio projection report.
+The report includes price intervals, estimated portfolio values, and market capitalization projections.
+Users can export the data as a formatted PDF report.
+
+Dependencies:
+-------------
+- pandas
+- fpdf
+- numpy
+- tkinter
+- PIL (Pillow)
+
+Features:
+---------
+- Generates price intervals for Kaspa using linear and logarithmic scaling.
+- Computes portfolio value and market capitalization at different price points.
+- Exports a formatted PDF report with a Kaspa logo, portfolio summary, and data table.
+- Provides a user-friendly GUI for data input and report generation.
+
+Usage:
+------
+Ensure all dependencies are installed:
+
+    pip install pandas fpdf numpy pillow
+
+Run the script:
+
+    python kaspa_portfolio_projection.py
+
+Author:
+-------
+Kaspa Community Contributor
+
+Version:
+--------
+1.0
+
+Date:
+-----
+2025-02-02
+"""
+
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
-
-# if the above is not installed in your env, run the following in the proj terminal:
-# pip install pandas fpdf numpy pillow
 
 # Path to the Kaspa logo
 LOGO_PATH_LIGHT_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Full-Color.png"
