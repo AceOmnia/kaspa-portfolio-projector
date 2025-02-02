@@ -1,5 +1,5 @@
 """
-kaspa_portfolio_projection.py
+kpp.py
 =============================
 
 A Python application for generating Kaspa portfolio projections and reports.
@@ -32,7 +32,7 @@ Ensure all dependencies are installed:
 
 Run the script:
 
-    python kaspa_portfolio_projection.py
+    python kpp.py
 
 Author:
 -------
