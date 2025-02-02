@@ -47,17 +47,30 @@ Date:
 2025-02-02
 """
 
+import sys
+import os
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
+import sys
+import os
 
-# Path to the Kaspa logo
-LOGO_PATH_LIGHT_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Full-Color.png"
-LOGO_PATH_DARK_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Reverse.png"
-ICON_PATH = r"pics\kaspa.ico"
+# Grab full path if needed for Pyinstaller executable instance
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for PyInstaller """
+    if getattr(sys, 'frozen', False):  # Running as a PyInstaller bundle
+        base_path = sys._MEIPASS  # PyInstaller extracts files here
+    else:
+        base_path = os.path.abspath(".")  # Running as a script
+    return os.path.join(base_path, relative_path)
+
+# VARS
+LOGO_PATH_LIGHT_BACKGROUND = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
+LOGO_PATH_DARK_BACKGROUND = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
+ICON_PATH = resource_path(r"pics\kaspa.ico")
 VERSION = r"0.1"
 
 # Function to generate price intervals
@@ -201,10 +214,10 @@ def create_gui():
     global portfolio_name, kaspa_amount, current_price, circulating_supply, purchase_price, logo_label
 
     root = tk.Tk()
+    root.iconbitmap(ICON_PATH)  # Change window icon
     root.title("Kaspa Portfolio Projection (KPP)")
     root.geometry("600x700")  # Adjusted for better layout
     root.configure(bg="#70C7BA")  # Dark teal background
-    root.iconbitmap(ICON_PATH) # Change window icon
 
     # Create Styles
     style = ttk.Style()
