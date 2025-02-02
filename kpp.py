@@ -40,7 +40,7 @@ Kaspa Community Contributor
 
 Version:
 --------
-1.0
+0.1
 
 Date:
 -----
@@ -58,6 +58,7 @@ from PIL import Image, ImageTk
 LOGO_PATH_LIGHT_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Full-Color.png"
 LOGO_PATH_DARK_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Reverse.png"
 ICON_PATH = r"pics\kaspa.ico"
+VERSION = r"0.1"
 
 # Function to generate price intervals
 def generate_price_intervals(current_price):
@@ -202,7 +203,7 @@ def create_gui():
 
     root = tk.Tk()
     root.title("Kaspa Portfolio Projection (KPP)")
-    root.geometry("600x680")  # Adjusted for better layout
+    root.geometry("600x700")  # Adjusted for better layout
     root.configure(bg="#70C7BA")  # Dark teal background
     root.iconbitmap(ICON_PATH) # Change window icon
 
@@ -271,6 +272,14 @@ def create_gui():
     info_label = ttk.Label(frame, text="Developed open-source by Kaspa community member.",
                            foreground="#70C7BA", background="#231F20", font=("Arial", 10))
     info_label.grid(row=7, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
+
+    # Version
+    info_label = ttk.Label(frame, text="(Version {})".format(VERSION),
+                           foreground="#70C7BA", background="#231F20", font=("Arial", 10))
+    info_label.grid(row=8, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
+
+
+
 
     root.mainloop()
 
