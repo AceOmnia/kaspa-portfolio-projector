@@ -70,8 +70,8 @@ If you would like a compiled executable, I've compiled the python into an execut
    ```sh
    pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
    --icon="pics\kaspa.ico" `
-   --add-data "pics\kaspa.ico;pics" ` 
-   --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" ` 
+   --add-data "pics\kaspa.ico;pics" `
+   --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" `
    --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
    kpp.py
    ```
