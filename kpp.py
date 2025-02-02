@@ -1,5 +1,3 @@
-# pip install pandas fpdf numpy pillow
-
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
@@ -7,6 +5,9 @@ import re
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+
+# if the above is not installed in your env, run the following in the proj terminal:
+# pip install pandas fpdf numpy pillow
 
 # Path to the Kaspa logo
 LOGO_PATH_LIGHT_BACKGROUND = r"pics\Kaspa-LDSP-Dark-Full-Color.png"
