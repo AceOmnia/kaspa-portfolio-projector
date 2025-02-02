@@ -1,4 +1,3 @@
-
 # Kaspa Portfolio Projection (KPP)
 
 A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report.
@@ -17,6 +16,22 @@ Ensure you have Python installed on your system. Then, install the required depe
 ```sh
 pip install pandas fpdf numpy pillow
 ```
+
+<details>
+<summary><strong>Getting Python on Windows</strong> (Click to expand)</summary>
+
+If you do not have Python installed on your Windows computer, follow these steps:
+
+1. Visit the official Python website: [https://www.python.org/downloads/windows/](https://www.python.org/downloads/windows/)
+2. Download the latest stable version of Python.
+3. Run the installer and ensure you check the box **"Add Python to PATH"** before proceeding with the installation.
+4. Verify the installation by opening Command Prompt (`cmd`) and running:
+   ```sh
+   python --version
+   ```
+   If Python is installed correctly, it will display the installed version number.
+
+</details>
 
 ## Usage
 
