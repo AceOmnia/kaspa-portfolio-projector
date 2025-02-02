@@ -54,15 +54,28 @@ This script requires the following Python libraries:
 - `tkinter` (for the GUI application)
 - `PIL (Pillow)` (for image handling in the GUI)
 
-## Screenshots
+## Examples
 
 ### Main Application GUI
 ![Main GUI](screenshots/KPP-App-Screenshot.png)
+### Main Application GUI - Filled In
 ![Main GUI - Filled In](screenshots/KPP-App-Screenshot-Filled_In.png)
 
 ### Sample PDF Report
 ![Sample PDF - view in /docs](docs/KPP-App-Example-PDF.pdf)
 
+## Compiled Executable
+
+If you would like a compiled executable, I've compiled the python into an executable that can be run usinig the following command:
+   ```sh
+   pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
+   --icon="pics\kaspa.ico" `
+   --add-data "pics\kaspa.ico;pics" ` 
+   --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" ` 
+   --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
+   kpp.py
+   ```
+The file can be found in ![Compiled KPP](screenshots/).
 
 ## Contributing
 
