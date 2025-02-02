@@ -219,12 +219,12 @@ def create_gui():
 
     # Load and Display the Kaspa Logo
     image = Image.open(LOGO_PATH_DARK_BACKGROUND)
-    image = image.resize((436, 182), Image.LANCZOS)
+    image = image.resize((436, 182), Image.LANCZOS) # maintaining the 2.18 ratio
     logo_img = ImageTk.PhotoImage(image)
 
     logo_label = tk.Label(frame, image=logo_img, bg="#231F20")
     logo_label.image = logo_img
-    logo_label.grid(row=0, columnspan=2, pady=5)  # Centered logo
+    logo_label.grid(row=0, columnspan=2, pady=(0,8))  # Centered logo
 
     # Function to Create Input Fields with Greyed-Out Placeholder
     def add_input(label_text, row, placeholder_text):
