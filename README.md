@@ -56,7 +56,7 @@ This script requires the following Python libraries:
 
 ## Screenshots
 
-_(Add relevant screenshots here if available)_
+See 'screenshots' folder.
 
 ## Contributing
 

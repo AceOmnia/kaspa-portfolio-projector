@@ -86,7 +86,6 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
     return pd.DataFrame(data)
 
 # Function to generate the PDF report
-
 def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion,
                            purchase_price=None):
     pdf = FPDF()
@@ -277,9 +276,6 @@ def create_gui():
     info_label = ttk.Label(frame, text="(Version {})".format(VERSION),
                            foreground="#70C7BA", background="#231F20", font=("Arial", 10))
     info_label.grid(row=8, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
-
-
-
 
     root.mainloop()
 
