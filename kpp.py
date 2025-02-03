@@ -47,8 +47,6 @@ Date:
 2025-02-02
 """
 
-import sys
-import os
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
