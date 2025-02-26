@@ -1,295 +1,630 @@
-"""
-kpp.py
-=============================
-
-A Python application for generating Kaspa portfolio projections and reports.
-
-This script provides a graphical user interface (GUI) for users to input their Kaspa holdings,
-current market price, and circulating supply to generate a detailed portfolio projection report.
-The report includes price intervals, estimated portfolio values, and market capitalization projections.
-Users can export the data as a formatted PDF report.
-
-Dependencies:
--------------
-- pandas
-- fpdf
-- numpy
-- tkinter
-- PIL (Pillow)
-
-Features:
----------
-- Generates price intervals for Kaspa using linear and logarithmic scaling.
-- Computes portfolio value and market capitalization at different price points.
-- Exports a formatted PDF report with a Kaspa logo, portfolio summary, and data table.
-- Provides a user-friendly GUI for data input and report generation.
-
-Usage:
-------
-Ensure all dependencies are installed:
-
-    pip install pandas fpdf numpy pillow
-
-Run the script:
-
-    python kpp.py
-
-Author:
--------
-Kaspa Community Contributor
-
-Version:
---------
-0.1
-
-Date:
------
-2025-02-02
-"""
-
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
-import sys
 import os
+import sys
+from pycoingecko import CoinGeckoAPI
+import logging
+from functools import lru_cache
 
-# Grab full path if needed for Pyinstaller executable instance
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Resource path handling
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for PyInstaller """
-    if getattr(sys, 'frozen', False):  # Running as a PyInstaller bundle
-        base_path = sys._MEIPASS  # PyInstaller extracts files here
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
     else:
-        base_path = os.path.abspath(".")  # Running as a script
+        base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# VARS
-LOGO_PATH_LIGHT_BACKGROUND = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
-LOGO_PATH_DARK_BACKGROUND = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
+# Constants
+LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")  # Dark reverse for UI
+LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")  # Light background for PDF
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = r"0.1"
+VERSION = "0.2"
+COLOR_BG = "#70C7BA"  # Teal (Kaspa color)
+COLOR_FG = "#231F20"  # Dark gray
+COLOR_TOP_BG = "#1A1C1E"  # Darker gray for logo contrast
+CHECKMARK_COLOR = "#006600"  # Green for check marks
 
-# Function to generate price intervals
-def generate_price_intervals(current_price):
+# Default values and placeholders for each field
+PLACEHOLDERS = {
+    "Portfolio Name:": "e.g., My Kaspa Holdings",
+    "KAS Holdings:": "e.g., 1367",
+    "Current Price (USD):": "e.g., 0.2711",
+    "Circulating Supply (B):": "e.g., 25.6"
+}
+
+DEFAULTS = {
+    "Portfolio Name:": "",
+    "KAS Holdings:": "0",  # Default to 0 for KAS Holdings
+    "Current Price (USD):": "",
+    "Circulating Supply (B):": ""
+}
+
+# List of numeric fields
+NUMERIC_FIELDS = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (B):"]
+
+# Simulated exchange rates (expandable via API in future)
+EXCHANGE_RATES = {"USD": 1.0, "EUR": 0.85, "BTC": 0.000013}
+
+# Price intervals generation
+def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     rounded_cent = round(current_price, 2)
-    black_row_price = rounded_cent
-    red_intervals = np.linspace(0.05, black_row_price - 0.01, num=7).tolist() # 7 evenly distributed intervals down to 5 cents
-    black_interval = [black_row_price]
-    green_intervals = np.geomspace(black_row_price + 0.01, 200, num=60).tolist() # 60 logarithmically distributed intervals up to $200 KAS
-    price_intervals = sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
-    return price_intervals
+    red_intervals = np.linspace(min_price, rounded_cent - 0.01, num=9).tolist()
+    black_interval = [rounded_cent]
+    green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=240).tolist()
+    return sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
 
-# Function to generate portfolio projection DataFrame
-def generate_portfolio_projection(kaspa_amount, current_price, circulating_supply_billion):
+# Portfolio projection calculation
+def generate_portfolio_projection(kaspa_amount: float, current_price: float, circulating_supply_billion: float, currency: str) -> tuple[pd.DataFrame, str]:
+    min_price = 0.01  # Fixed default minimum price
+    max_price = 1000   # Fixed default maximum price
     circulating_supply = circulating_supply_billion * 1_000_000_000
-    market_cap = current_price * circulating_supply
-    price_intervals = generate_price_intervals(current_price)
+    price_intervals = generate_price_intervals(current_price, min_price, max_price)
+    rate = EXCHANGE_RATES.get(currency.upper(), EXCHANGE_RATES["USD"])  # Default to USD
+    symbol = {"USD": "$", "EUR": "€", "BTC": "₿"}.get(currency.upper(), "$")  # Default to "$"
 
     data = {
-        "Kaspa Price ($)": [f"${price:.2f}" for price in price_intervals],
-        "Portfolio Value ($)": [f"${kaspa_amount * price:,.2f}" for price in price_intervals],
-        "Market Cap ($)": [f"${(market_cap / current_price) * price:,.2f}" for price in price_intervals],
+        "Price": [price for price in price_intervals],
+        "Portfolio": [kaspa_amount * price * rate for price in price_intervals],
+        "Market Cap": [circulating_supply * price * rate for price in price_intervals],
         "Color": ["red" if price < round(current_price, 2) else "black" if price == round(current_price, 2) else "green"
-                  for price in price_intervals],
+                 for price in price_intervals]
     }
-    return pd.DataFrame(data)
+    return pd.DataFrame(data), symbol
 
-# Function to generate the PDF report
-def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion,
-                           purchase_price=None):
+# PDF generation
+def generate_portfolio_pdf(df: pd.DataFrame, filename: str, title: str, kaspa_amount: float, current_price: float, circulating_supply_billion: float, currency: str) -> None:
+    if not isinstance(currency, str):
+        currency = "USD"
+    currency = currency.upper()
+
     pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-
-    # Add Logo - Center it for better appearance
-    pdf.image(LOGO_PATH_LIGHT_BACKGROUND, x=80, y=10, w=50)
+    pdf.image(LOGO_PATH_LIGHT, x=80, y=10, w=50)
     pdf.ln(25)
 
-    # Title - Make it stand out
-    pdf.set_font("Helvetica", style='B', size=22)
-    pdf.cell(200, 10, title, ln=True, align='C')
+    # Portfolio name (title) centered and bold, below the logo
+    pdf.set_font("Helvetica", 'B', 22)
+    pdf.cell(0, 10, f"{title} Portfolio Projection", ln=True, align='C')
+    pdf.ln(-2)
+
+    # Add "Generated by Kaspa Portfolio Projector (KPP)" centered under the title
+    pdf.set_font("Helvetica", '', 7)
+    pdf.cell(0, 5, "Generated by Kaspa Portfolio Projector (KPP)", ln=True, align='C')
+
+    # Add a sleek line under the title
+    pdf.set_draw_color(128, 128, 128)
+    pdf.set_line_width(0.5)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(5)
 
-    # Add a subtle separator
-    pdf.set_draw_color(200, 200, 200)  # Light grey line
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(10)
-
-    # Portfolio Facts - Better alignment
-    circulating_supply = circulating_supply_billion * 1_000_000_000
-    market_cap = current_price * circulating_supply
-    portfolio_value = kaspa_amount * current_price
-    price_needed_for_million = 1_000_000 / kaspa_amount
-    market_cap_at_million = (market_cap / current_price) * price_needed_for_million
-
-    pdf.set_font("Helvetica", style='B', size=14)
-    pdf.cell(200, 8, "Portfolio Facts", ln=True, align='L')
+    # Portfolio Facts section
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 8, "Portfolio Facts", ln=True)
     pdf.ln(4)
+    pdf.set_font("Helvetica", '', 11)
 
-    pdf.set_font("Helvetica", size=11)
-    cell_width = 90
-    spacing = 7
+    circulating_supply = circulating_supply_billion * 1_000_000_000
+    rate = EXCHANGE_RATES.get(currency, EXCHANGE_RATES["USD"])
+    symbol = {"USD": "$", "EUR": "€", "BTC": "₿"}.get(currency, "$")
+    market_cap = current_price * circulating_supply * rate
+    portfolio_value = kaspa_amount * current_price * rate
+    price_needed_for_1m = 1_000_000 / kaspa_amount if kaspa_amount > 0 else 0
+    market_cap_needed_for_1m = (1_000_000 / kaspa_amount) * circulating_supply if kaspa_amount > 0 else 0
 
-    # Using a cleaner layout with tabular alignment
-    data = [
-        ("Current KAS Holdings:", f"{kaspa_amount:,} KAS"),
-        ("Current KAS Portfolio Value:", f"${portfolio_value:,.2f}"),
-        ("Current KAS Market Cap:", f"${market_cap:,.2f}"),
-        ("KAS Price Needed for $1M Portfolio:", f"${price_needed_for_million:,.2f}"),
-        ("KAS Market Cap Needed for $1M Portfolio:", f"${market_cap_at_million:,.2f}")
-    ]
+    for label, value in [
+        ("Current KAS Holdings:", f"{kaspa_amount:,.2f} KAS"),
+        ("Current KAS Portfolio Value:", f"{symbol}{portfolio_value:,.2f}"),
+        ("Current KAS Market Cap:", f"{symbol}{market_cap:,.2f}"),
+        ("KAS Price Needed for $1M Portfolio:", f"{symbol}{price_needed_for_1m:,.2f}"),
+        ("KAS Market Cap Needed for $1M Portfolio:", f"{symbol}{market_cap_needed_for_1m:,.2f}")
+    ]:
+        pdf.cell(90, 6, label, ln=False)
+        pdf.cell(0, 6, value, ln=True, align='R')
 
-    for label, value in data:
-        pdf.cell(cell_width, spacing, label, ln=False, align='L')
-        pdf.cell(0, spacing, value, ln=True, align='R')
+    pdf.ln(5)
 
-    if purchase_price:
-        pdf.cell(cell_width, spacing, "KAS Portfolio Breakeven Price (per KAS):", ln=False, align='L')
-        pdf.cell(0, spacing, f"${purchase_price:.2f}", ln=True, align='R')
-
-    pdf.ln(8)
-
-    # Table Header with Bold Styling
-    pdf.set_font("Helvetica", style='B', size=11)
-    pdf.set_fill_color(230, 230, 230)  # Light gray background for headers
-    pdf.cell(50, 10, "Kaspa Price ($)", border=1, align='C', fill=True)
-    pdf.cell(70, 10, "Portfolio Value ($)", border=1, align='C', fill=True)
-    pdf.cell(70, 10, "Market Cap ($)", border=1, align='C', fill=True)
+    # Table headers
+    pdf.set_font("Helvetica", 'B', 11)
+    pdf.set_fill_color(230, 230, 230)
+    for header in [f"Price ({currency})", f"Portfolio ({currency})", f"Market Cap ({currency})"]:
+        pdf.cell(63, 8, header, border=1, align='C', fill=True)
     pdf.ln()
 
-    # Table Data - Adjust text colors dynamically
-    pdf.set_font("Helvetica", size=10)
+    # Table data
+    pdf.set_font("Helvetica", '', 10)
     for _, row in df.iterrows():
-        # Set color based on row condition
-        if row["Color"] == "red":
-            pdf.set_text_color(255, 0, 0)  # Red
-        elif row["Color"] == "black":
-            pdf.set_text_color(0, 0, 0)  # Black
-        else:
-            pdf.set_text_color(0, 128, 0)  # Green
-
-        pdf.cell(50, 10, row["Kaspa Price ($)"], border=1, align='C')
-        pdf.cell(70, 10, row["Portfolio Value ($)"], border=1, align='C')
-        pdf.cell(70, 10, row["Market Cap ($)"], border=1, align='C')
+        pdf.set_text_color(*{"red": (255, 0, 0), "black": (0, 0, 0), "green": (0, 128, 0)}[row["Color"]])
+        pdf.cell(63, 8, f"{symbol}{row['Price']:.2f}", border=1, align='C')
+        pdf.cell(63, 8, f"{symbol}{row['Portfolio']:,.2f}", border=1, align='C')
+        pdf.cell(63, 8, f"{symbol}{row['Market Cap']:,.2f}", border=1, align='C')
         pdf.ln()
 
-    # Reset text color to default
-    pdf.set_text_color(0, 0, 0)
+    # Footer
+    pdf.set_y(-10)
+    pdf.set_font("Helvetica", '', 7)
+    pdf.cell(0, 5, "Generated by Kaspa Portfolio Projector (KPP)", 0, 0, 'C')
 
     pdf.output(filename)
     messagebox.showinfo("Success", f"PDF saved at {filename}.")
 
-# Function to generate the PDF on button click
-def generate_pdf():
-    try:
-        portfolio = portfolio_name.get()
-        kaspa = float(kaspa_amount.get())
-        price = float(current_price.get())
-        supply = float(circulating_supply.get())
+# Custom Tooltip implementation
+class Tooltip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
 
-        # Handle Purchase Price Placeholder
-        purchase = purchase_price.get()
-        if purchase == "e.g., 0.1735 (aka 17.35 cents)" or purchase.strip() == "":
-            purchase = None  # Treat as empty if placeholder is still there
+    def show_tooltip(self, event):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.geometry(f"+{x}+{y}")
+        label = tk.Label(self.tooltip, text=self.text, background="lightyellow", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+# GUI Application
+class KaspaPortfolioApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title(f"Kaspa Portfolio Projection (KPP) - Version {VERSION}")
+        self.root.geometry("1500x900")
+        self.root.iconbitmap(ICON_PATH)
+        self.root.configure(bg=COLOR_BG)
+
+        # Set up window close handler
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Top frame with darker background for logo contrast
+        self.top_frame = tk.Frame(root, bg=COLOR_TOP_BG, height=150)
+        self.top_frame.pack(fill="x", pady=(0, 10))
+
+        # Logo on darker background
+        image = Image.open(LOGO_PATH).resize((300, 125), Image.LANCZOS)
+        self.logo = ImageTk.PhotoImage(image)
+        tk.Label(self.top_frame, image=self.logo, bg=COLOR_TOP_BG).pack(pady=10, padx=10)
+
+        # Main frame with original teal background
+        self.main_frame = tk.Frame(root, bg=COLOR_BG, padx=20, pady=10)
+        self.main_frame.pack(fill="both", expand=True)
+
+        # Loading indicator
+        self.loading_label = ttk.Label(self.main_frame, text="Loading...")
+        self.loading_label.pack(pady=10)
+        self.loading_label.pack_forget()  # Hide initially
+
+        # Input frame with styled background and border, split into two subframes
+        self.input_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=2, relief="ridge", padx=20, pady=15)
+        self.input_frame.pack(fill="x", pady=10, padx=10)
+
+        # Subframe for input fields, buttons, and currency selector
+        self.input_subframe = tk.Frame(self.input_frame, bg=COLOR_FG, padx=10, pady=10)
+        self.input_subframe.pack(side="left", fill="both", expand=True)
+
+        # Subframe for metrics
+        self.metrics_subframe = tk.Frame(self.input_frame, bg=COLOR_FG, padx=10, pady=10)
+        self.metrics_subframe.pack(side="right", fill="both", expand=True)
+
+        # Input fields with improved styling and check marks
+        self.entries = {}
+        self.check_marks = {}
+        self.updated_fields = {}
+        self.metrics_entries = {}
+        self.fetched_data = None  # Store cached data
+
+        for label, placeholder, default in [
+            ("Portfolio Name:", PLACEHOLDERS["Portfolio Name:"], DEFAULTS["Portfolio Name:"]),
+            ("KAS Holdings:", PLACEHOLDERS["KAS Holdings:"], DEFAULTS["KAS Holdings:"]),
+            ("Current Price (USD):", PLACEHOLDERS["Current Price (USD):"], DEFAULTS["Current Price (USD):"]),
+            ("Circulating Supply (B):", PLACEHOLDERS["Circulating Supply (B):"], DEFAULTS["Circulating Supply (B):"])
+        ]:
+            row = list(PLACEHOLDERS.keys()).index(label)
+            tk.Label(self.input_subframe, text=label, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=row, column=0, padx=10, pady=8, sticky="w")
+            entry_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
+            entry_frame.grid(row=row, column=1, padx=10, pady=8, sticky="e")
+
+            # Use left alignment for the input fields in the red circle
+            entry = tk.Entry(entry_frame, bg="white", fg="grey", font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightcolor=COLOR_BG, highlightthickness=2, width=30, justify="left")
+            entry.insert(0, placeholder if not default else default)
+            entry.grid(row=0, column=0, padx=5, pady=0, sticky="e")
+            entry.bind("<FocusIn>", lambda e, p=placeholder, d=default: self.clear_placeholder(e.widget, p, d, label))
+            entry.bind("<FocusOut>", lambda e, p=placeholder, d=default: self.restore_placeholder(e.widget, p, d, label))
+            entry.bind("<KeyRelease>", lambda e: self.update_field_and_check(e.widget))
+            entry.bind("<Return>", lambda e: self.update_field_and_check(e.widget))
+            self.entries[label] = entry
+            self.updated_fields[label] = False
+
+            # Add check mark label
+            check_mark = tk.Label(entry_frame, text="✔", bg=COLOR_FG, fg=CHECKMARK_COLOR, font=("Arial", 12, "bold"))
+            check_mark.grid(row=0, column=1, padx=5, pady=0, sticky="w")
+            check_mark.grid_remove()
+            self.check_marks[label] = check_mark
+
+        # Currency selection with tooltips
+        tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=0, column=2, padx=10, pady=8, sticky="w")
+        self.currency_var = tk.StringVar(value="USD")
+        currency_menu = tk.OptionMenu(self.input_subframe, self.currency_var, "USD", "EUR", "BTC", command=self.update_display_on_currency_change)
+        currency_menu.config(bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightcolor=COLOR_BG, highlightthickness=2)
+        currency_menu.grid(row=0, column=3, padx=5, pady=8, sticky="w")
+        tooltip = Tooltip(currency_menu, text="Select the currency for your portfolio projections (USD, EUR, or BTC)")
+
+        # Styled buttons with hover effect
+        self.create_styled_button("Fetch Data", self.fetch_data, 4, 0)
+        self.create_styled_button("Generate PDF", self.generate_pdf, 4, 1)
+
+        # Initialize metrics with tooltips (keeping right alignment for Portfolio Metrics)
+        self.metrics_entries["Holdings"] = self.create_metric_entry(self.metrics_subframe, "Current KAS Holdings:", "Total KAS coins currently held")
+        self.metrics_entries["Holdings"].grid(row=1, column=0, padx=(0, 10), pady=5, sticky="e")
+        self.metrics_entries["Portfolio Value"] = self.create_metric_entry(self.metrics_subframe, "Current KAS Portfolio Value:", "Value of your KAS holdings in selected currency")
+        self.metrics_entries["Portfolio Value"].grid(row=2, column=0, padx=(0, 10), pady=5, sticky="e")
+        self.metrics_entries["Market Cap"] = self.create_metric_entry(self.metrics_subframe, "Current KAS Market Cap:", "Total market cap of Kaspa in selected currency")
+        self.metrics_entries["Market Cap"].grid(row=3, column=0, padx=(0, 10), pady=5, sticky="e")
+        self.metrics_entries["Price Needed 1M"] = self.create_metric_entry(self.metrics_subframe, "KAS Price Needed for $1M Portfolio:", "Price per KAS needed for a $1M portfolio")
+        self.metrics_entries["Price Needed 1M"].grid(row=4, column=0, padx=(0, 10), pady=5, sticky="e")
+        self.metrics_entries["Market Cap Needed 1M"] = self.create_metric_entry(self.metrics_subframe, "KAS Market Cap Needed for $1M Portfolio:", "Market cap needed for a $1M portfolio")
+        self.metrics_entries["Market Cap Needed 1M"].grid(row=5, column=0, padx=(0, 10), pady=5, sticky="e")
+
+        # Add centered "Portfolio Metrics" title
+        tk.Label(self.metrics_subframe, text="Portfolio Metrics", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold"), anchor="center").grid(row=0, column=0, padx=10, pady=(10, 5), sticky="nsew")
+
+        # Display frame with styled background and border
+        self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=2, relief="ridge", padx=20, pady=15)
+        self.display_frame.pack(fill="both", expand=True, pady=10, padx=10)
+
+        # Add title to the chart area
+        tk.Label(self.display_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="n")
+
+        # Treeview with improved styling, sorting, and readability
+        self.tree = ttk.Treeview(self.display_frame, columns=("Price", "Portfolio", "MarketCap"), show="headings", height=20)  # Increased height
+        self.tree.heading("Price", text="Price", command=lambda: self.sort_table("Price"))
+        self.tree.heading("Portfolio", text="Portfolio Value", command=lambda: self.sort_table("Portfolio"))
+        self.tree.heading("MarketCap", text="Market Cap", command=lambda: self.sort_table("MarketCap"))
+        self.tree.column("Price", width=150, anchor="center")  # Increased width
+        self.tree.column("Portfolio", width=200, anchor="center")  # Increased width
+        self.tree.column("MarketCap", width=250, anchor="center")  # Increased width
+
+        self.tree.grid(row=1, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
+        scrollbar.grid(row=1, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=scrollbar.set, xscrollcommand=None)
+
+        # Configure responsive layout
+        self.display_frame.grid_rowconfigure(1, weight=1)
+        self.display_frame.grid_columnconfigure(0, weight=1)
+
+        # Style the Treeview and scrollbar for readability
+        style = ttk.Style()
+        style.configure("Treeview", background="white", fieldbackground="white", foreground=COLOR_FG, font=("Arial", 12))  # Larger font
+        style.map("Treeview", background=[("selected", COLOR_BG)], foreground=[("selected", COLOR_FG)])
+        self.tree.tag_configure("red", foreground="red")
+        self.tree.tag_configure("black", foreground="black")
+        self.tree.tag_configure("green", foreground="green")
+        self.tree.tag_configure("even", background="#F0F0F0")  # Light gray for even rows
+        self.tree.tag_configure("odd", background="white")  # White for odd rows
+        style.configure("Treeview.Heading", background=COLOR_BG, foreground=COLOR_FG, font=("Arial", 14, "bold"))
+        style.configure("Vertical.TScrollbar", gripcount=0, background=COLOR_BG, troughcolor=COLOR_FG, borderwidth=0, arrowsize=0)
+        style.map("Vertical.TScrollbar", background=[("active", "#4CAF50")], troughcolor=[("active", "#4CAF50")])
+
+        # Version and help
+        self.create_styled_button("Help", self.show_help, 5, 0, columnspan=2)
+
+        # Fetch data on startup
+        self.fetch_data_on_startup()
+
+    def create_metric_entry(self, parent, label_text, tooltip_text=""):
+        frame = tk.Frame(parent, bg=COLOR_FG)
+        tk.Label(frame, text=label_text, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=0, column=0, padx=10, pady=8, sticky="w")
+        entry = tk.Entry(frame, bg="white", fg=COLOR_FG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightcolor=COLOR_BG, highlightthickness=2, width=30, justify="right", state='disabled')
+        entry.grid(row=0, column=1, padx=5, pady=8, sticky="e")
+        if tooltip_text:
+            Tooltip(entry, text=tooltip_text)
+        return frame
+
+    @staticmethod
+    @lru_cache(maxsize=1, typed=True)
+    def fetch_kaspa_data() -> tuple[float, float]:
+        """Fetch Kaspa data with caching (15-minute TTL)."""
+        try:
+            cg = CoinGeckoAPI()
+            kaspa_data = cg.get_price(ids='kaspa', vs_currencies='usd')
+            kaspa_supply = cg.get_coin_by_id(id='kaspa')['market_data']['circulating_supply']
+            return kaspa_data['kaspa']['usd'], kaspa_supply
+        except Exception as e:
+            logger.error(f"Failed to fetch Kaspa data: {str(e)}")
+            raise
+
+    def fetch_data_on_startup(self):
+        """Fetch Kaspa data on startup and store it, but don’t update fields until user interaction."""
+        self.show_loading()
+        try:
+            price, supply = KaspaPortfolioApp.fetch_kaspa_data()  # Call as a static method
+            self.fetched_data = (price, supply / 1_000_000_000)  # Store as (price, supply in billions)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to fetch data on startup: {str(e)}")
+        finally:
+            self.hide_loading()
+
+    def fetch_data(self):
+        """Fetch Kaspa data and update fields and table asynchronously."""
+        self.show_loading()
+        try:
+            price, supply = KaspaPortfolioApp.fetch_kaspa_data()  # Call as a static method
+            self.entries["Current Price (USD):"].delete(0, tk.END)
+            self.entries["Current Price (USD):"].insert(0, f"{price:.4f}")
+            self.entries["Circulating Supply (B):"].delete(0, tk.END)
+            self.entries["Circulating Supply (B):"].insert(0, f"{supply / 1_000_000_000:.4f}")
+            self.updated_fields["Current Price (USD):"] = True
+            self.show_check_mark("Current Price (USD):")
+            self.updated_fields["Circulating Supply (B):"] = True
+            self.show_check_mark("Circulating Supply (B):")
+            kas_holdings_value = self.entries["KAS Holdings:"].get().strip()
+            if kas_holdings_value in [PLACEHOLDERS["KAS Holdings:"], DEFAULTS["KAS Holdings:"], ""]:
+                self.entries["KAS Holdings:"].delete(0, tk.END)
+                self.entries["KAS Holdings:"].insert(0, "0")
+            self.updated_fields["KAS Holdings:"] = True
+            self.show_check_mark("KAS Holdings:")
+            self.update_display_if_valid()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to fetch data: {str(e)}")
+        finally:
+            self.hide_loading()
+
+    def clear_placeholder(self, widget, placeholder, default, label):
+        if widget.get() in [placeholder, default]:
+            widget.delete(0, tk.END)
+            widget.config(fg=COLOR_FG)
+            self.updated_fields[label] = False
+            self.hide_check_mark(label)
+
+    def restore_placeholder(self, widget, placeholder, default, label):
+        value = widget.get().strip()
+        if not value:
+            widget.insert(0, placeholder)
+            widget.config(fg="grey")
+            self.updated_fields[label] = False
+            self.hide_check_mark(label)
         else:
-            purchase = float(purchase)  # Convert to float if user entered a value
+            widget.config(fg=COLOR_FG)
+            if value != placeholder:
+                if label == "Portfolio Name:":
+                    if not self.updated_fields[label]:
+                        self.show_check_mark(label)
+                        self.updated_fields[label] = True
+                elif label in NUMERIC_FIELDS:
+                    try:
+                        if value:
+                            float_value = float(value.replace(',', '').replace(' ', ''))
+                            self.updated_fields[label] = True
+                            self.show_check_mark(label)
+                            self.update_display_if_valid()
+                        else:
+                            self.updated_fields[label] = False
+                            self.hide_check_mark(label)
+                    except ValueError:
+                        self.updated_fields[label] = False
+                        self.hide_check_mark(label)
+                        if widget == self.root.focus_get():
+                            messagebox.showerror("Error", f"Invalid input for {label}. Please enter a positive number.")
+            else:
+                self.updated_fields[label] = False
+                self.hide_check_mark(label)
 
-        file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")], title="Save PDF As")
-        if not file_path:
-            return
+    def show_check_mark(self, label):
+        if label in self.check_marks and self.check_marks[label] is not None and not self.check_marks[label].winfo_exists():
+            self.check_marks[label].grid()
 
-        df = generate_portfolio_projection(kaspa, price, supply)
-        generate_portfolio_pdf(df, file_path, f"{portfolio} Portfolio Projection", kaspa, price, supply, purchase)
+    def hide_check_mark(self, label):
+        if label in self.check_marks and self.check_marks[label] is not None and self.check_marks[label].winfo_exists():
+            self.check_marks[label].grid_remove()
 
-    except ValueError:
-        messagebox.showerror("Input Error", "Please enter valid numeric values.")
+    def update_field_and_check(self, widget):
+        label = next(l for l, e in self.entries.items() if e == widget)
+        value = widget.get().strip()
+        placeholder = PLACEHOLDERS[label]
 
+        if value and value != placeholder:
+            if label == "Portfolio Name:":
+                widget.config(fg=COLOR_FG)
+                if not self.updated_fields[label]:
+                    self.show_check_mark(label)
+                    self.updated_fields[label] = True
+            elif label in NUMERIC_FIELDS:
+                try:
+                    if value:
+                        float_value = float(value.replace(',', '').replace(' ', ''))
+                        if float_value < 0:
+                            raise ValueError("Please enter a positive number.")
+                        widget.config(fg=COLOR_FG)
+                        if not self.updated_fields[label]:
+                            self.show_check_mark(label)
+                            self.updated_fields[label] = True
+                        self.update_display_if_valid()
+                    else:
+                        self.updated_fields[label] = False
+                        self.hide_check_mark(label)
+                except ValueError as e:
+                    widget.config(fg=COLOR_FG)
+                    self.updated_fields[label] = False
+                    self.hide_check_mark(label)
+                    if widget == self.root.focus_get():
+                        messagebox.showerror("Error", str(e))
+        else:
+            widget.config(fg="grey" if value == placeholder else COLOR_FG)
+            self.updated_fields[label] = False
+            self.hide_check_mark(label)
 
-# GUI Application with Tkinter
-def create_gui():
-    global portfolio_name, kaspa_amount, current_price, circulating_supply, purchase_price, logo_label
+        if label in NUMERIC_FIELDS and self.is_valid_numeric_field(label):
+            self.update_display_if_valid()
 
-    root = tk.Tk()
-    root.iconbitmap(ICON_PATH)  # Change window icon
-    root.title("Kaspa Portfolio Projection (KPP)")
-    root.geometry("600x700")  # Adjusted for better layout
-    root.configure(bg="#70C7BA")  # Dark teal background
+    def update_display_if_valid(self, event=None):
+        required_fields = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (B):"]
+        all_valid = all(self.is_valid_numeric_field(field) for field in required_fields)
 
-    # Create Styles
-    style = ttk.Style()
-    style.configure("TFrame", background="#231F20", relief="raised")  # Dark form background
-    style.configure("TLabel", background="#231F20", foreground="#70C7BA", font=("Arial", 11, "bold"))  # Teal labels
-    style.configure("TButton", font=("Arial", 12, "bold"), padding=10, relief="flat")  # Modern button
+        if all_valid:
+            try:
+                kaspa = float(self.entries["KAS Holdings:"].get().replace(',', '').replace(' ', ''))
+                price_usd = float(self.entries["Current Price (USD):"].get().replace(',', '').replace(' ', ''))
+                if not price_usd and self.fetched_data:
+                    price_usd = self.fetched_data[0]
+                supply = float(self.entries["Circulating Supply (B):"].get().replace(',', '').replace(' ', ''))
+                if not supply and self.fetched_data:
+                    supply = self.fetched_data[1]
+                currency = self.currency_var.get()
 
-    # Main Frame (Dark Form Area)
-    frame = ttk.Frame(root, padding=20, style="TFrame")
-    frame.pack(expand=True, fill=tk.BOTH, padx=20, pady=20)
+                df, symbol = generate_portfolio_projection(kaspa, price_usd, supply, currency)
 
-    # Load and Display the Kaspa Logo
-    image = Image.open(LOGO_PATH_DARK_BACKGROUND)
-    image = image.resize((436, 182), Image.LANCZOS) # maintaining the 2.18 ratio
-    logo_img = ImageTk.PhotoImage(image)
+                # Update table with sorting capability and alternating colors
+                for item in self.tree.get_children():
+                    self.tree.delete(item)
+                items = []
+                for index, (_, row) in enumerate(df.iterrows()):
+                    tag = "even" if index % 2 == 0 else "odd"  # Alternate row colors
+                    item = self.tree.insert("", "end", values=(
+                        f"{symbol}{row['Price']:.2f}",
+                        f"{symbol}{row['Portfolio']:,.0f}",  # Remove decimal for brevity
+                        f"{symbol}{row['Market Cap']:,.0f}"  # Remove decimal for brevity
+                    ), tags=(row["Color"], tag))
+                    items.append(item)
 
-    logo_label = tk.Label(frame, image=logo_img, bg="#231F20")
-    logo_label.image = logo_img
-    logo_label.grid(row=0, columnspan=2, pady=(0,8))  # Centered logo
+                # Find the index of the black line (current price)
+                current_price = round(price_usd, 2)
+                black_line_index = df.index[df['Price'] == current_price].tolist()[0]
+                # Scroll to show the last red row (one row before the black line, if it exists)
+                if black_line_index > 0:
+                    self.tree.see(items[black_line_index - 1])
+                    # Adjust the scroll position to ensure the last red row is at the top
+                    self.tree.yview_moveto((black_line_index - 1) / len(items))
 
-    # Function to Create Input Fields with Greyed-Out Placeholder
-    def add_input(label_text, row, placeholder_text):
-        ttk.Label(frame, text=label_text).grid(row=row, column=0, sticky="w", pady=5, padx=5)
+                # Update metrics
+                circulating_supply = supply * 1_000_000_000
+                market_cap = price_usd * circulating_supply * EXCHANGE_RATES.get(currency.upper(), EXCHANGE_RATES["USD"])
+                portfolio_value = kaspa * price_usd * EXCHANGE_RATES.get(currency.upper(), EXCHANGE_RATES["USD"])
+                price_needed_for_1m = 1_000_000 / kaspa if kaspa > 0 else 0
+                market_cap_needed_for_1m = (1_000_000 / kaspa) * circulating_supply if kaspa > 0 else 0
 
-        entry_frame = tk.Frame(frame, bg="#FFFFFF", highlightbackground="#70C7BA", highlightthickness=2, bd=0)
-        entry_frame.grid(row=row, column=1, padx=10, pady=5)
+                for key, value in [
+                    ("Holdings", f"{kaspa:,.2f} KAS"),
+                    ("Portfolio Value", f"{symbol}{portfolio_value:,.2f}"),
+                    ("Market Cap", f"{symbol}{market_cap:,.2f}"),
+                    ("Price Needed 1M", f"{symbol}{price_needed_for_1m:,.2f}"),
+                    ("Market Cap Needed 1M", f"{symbol}{market_cap_needed_for_1m:,.2f}")
+                ]:
+                    self.metrics_entries[key].winfo_children()[1].config(state='normal')
+                    self.metrics_entries[key].winfo_children()[1].delete(0, tk.END)
+                    self.metrics_entries[key].winfo_children()[1].insert(0, value)
+                    self.metrics_entries[key].winfo_children()[1].config(state='disabled')
 
-        entry = tk.Entry(entry_frame, width=30, font=("Arial", 11), bg="#FFFFFF", fg="grey",
-                         relief="flat", bd=0)
-        entry.insert(0, placeholder_text)  # Prefilled example text
+                logger.info(f"Metrics updated with KAS Holdings: {kaspa}, Price: {price_usd}, Supply: {supply}, Currency: {currency}")
+            except ValueError as e:
+                logger.error(f"ValueError in update_display_if_valid: {e}")
+        else:
+            if not any(self.is_valid_numeric_field(field) for field in required_fields):
+                self.clear_table()
+                for metric_entry in self.metrics_entries.values():
+                    metric_entry.winfo_children()[1].config(state='normal')
+                    metric_entry.winfo_children()[1].delete(0, tk.END)
+                    metric_entry.winfo_children()[1].config(state='disabled')
+                logger.info("Table and metrics cleared - No valid numeric fields")
 
-        # Remove Placeholder on Focus
-        def on_focus_in(event):
-            if entry.get() == placeholder_text:
-                entry.delete(0, tk.END)
-                entry.config(fg="#231F20")  # Switch to normal text color
+    def is_valid_numeric_field(self, label):
+        value = self.entries[label].get().strip()
+        if not value or value == PLACEHOLDERS[label]:
+            return False
+        try:
+            float_value = float(value.replace(',', '').replace(' ', ''))
+            if float_value < 0:
+                raise ValueError("Please enter a positive number.")
+            return True
+        except ValueError:
+            return False
 
-        # Restore Placeholder if Left Empty
-        def on_focus_out(event):
-            if entry.get() == "":
-                entry.insert(0, placeholder_text)
-                entry.config(fg="grey")  # Switch back to grey text
+    def update_display_on_currency_change(self, *args):
+        required_fields = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (B):"]
+        all_valid = all(self.is_valid_numeric_field(field) for field in required_fields)
+        if all_valid:
+            self.update_display_if_valid()
 
-        entry.bind("<FocusIn>", on_focus_in)
-        entry.bind("<FocusOut>", on_focus_out)
+    def clear_table(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
 
-        entry.pack(ipady=5, padx=5, pady=5, fill=tk.BOTH)
-        return entry
+    def sort_table(self, column):
+        """Sort the Treeview table by the specified column."""
+        items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
+        items.sort(key=lambda x: float(x[0][{"Price": 0, "Portfolio": 1, "MarketCap": 2}[column]].replace('$', '').replace(',', '')))
+        for item, (values, _) in enumerate(items):
+            self.tree.move(values[1], '', item)
 
-    # Create Input Fields with Examples
-    portfolio_name = add_input("Portfolio Name:", 1, "e.g., My Kaspa Holdings")
-    kaspa_amount = add_input("Total KAS Holdings:", 2, "e.g., 1367 (aka 1367 KAS)")
-    current_price = add_input("Current KAS Price ($):", 3, "e.g., 0.2711 (aka 27.11 cents)")
-    circulating_supply = add_input("Circulating Supply (Billions):", 4, "e.g., 25.6 (aka 25,600,000,000 KAS)")
-    purchase_price = add_input("Avg Purchase Price (Optional):", 5, "e.g., 0.1735 (aka 17.35 cents)")
+    def generate_pdf(self):
+        self.show_loading()
+        try:
+            for field in NUMERIC_FIELDS:
+                value = self.entries[field].get().strip()
+                if not value or value == PLACEHOLDERS[field]:
+                    raise ValueError(f"Please enter a valid positive number for {field} before generating a PDF.")
+                float(value.replace(',', '').replace(' ', ''))  # Validate
 
-    # Generate PDF Button
-    generate_button = tk.Button(frame, text="Generate PDF", command=generate_pdf,
-                                bg="#70C7BA", fg="#231F20", font=("Arial", 12, "bold"),
-                                relief="flat", bd=5, padx=20, pady=10, cursor="hand2")
-    generate_button.grid(row=6, columnspan=2, pady=25)  # Centered with better spacing
+            kaspa = float(self.entries["KAS Holdings:"].get().replace(',', '').replace(' ', ''))
+            price_usd = float(self.entries["Current Price (USD):"].get().replace(',', '').replace(' ', ''))
+            supply = float(self.entries["Circulating Supply (B):"].get().replace(',', '').replace(' ', ''))
+            currency = self.currency_var.get() or "USD"
+            name = self.entries["Portfolio Name:"].get()
 
-    # Add Text Below the Button
-    info_label = ttk.Label(frame, text="Developed open-source by Kaspa community member.",
-                           foreground="#70C7BA", background="#231F20", font=("Arial", 10))
-    info_label.grid(row=7, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
+            df, _ = generate_portfolio_projection(kaspa, price_usd, supply, currency)
+            file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")])
+            if file_path:
+                generate_portfolio_pdf(df, file_path, f"{name}", kaspa, price_usd, supply, currency)
+                self.updated_fields["Portfolio Name:"] = True
+                self.show_check_mark("Portfolio Name:")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+        finally:
+            self.hide_loading()
 
-    # Version
-    info_label = ttk.Label(frame, text="(Version {})".format(VERSION),
-                           foreground="#70C7BA", background="#231F20", font=("Arial", 10))
-    info_label.grid(row=8, columnspan=2, pady=(0, 10))  # Slight padding for better spacing
+    def create_styled_button(self, text, command, row, column, columnspan=1):
+        button = tk.Button(self.input_subframe, text=text, command=command, bg=COLOR_BG, fg=COLOR_FG,
+                           font=("Arial", 12, "bold"), relief="flat", bd=0, padx=20, pady=12)
+        button.grid(row=row, column=column, columnspan=columnspan, pady=12, padx=10, sticky="ew")
+        button.bind("<Enter>", lambda e: button.config(bg=COLOR_FG, fg=COLOR_BG))
+        button.bind("<Leave>", lambda e: button.config(bg=COLOR_BG, fg=COLOR_FG))
+        return button
 
-    root.mainloop()
+    def show_loading(self):
+        self.loading_label.pack(pady=10)
+        self.root.update()
 
-# Run GUI
+    def hide_loading(self):
+        self.loading_label.pack_forget()
+        self.root.update()
+
+    def show_help(self):
+        messagebox.showinfo("Help", "Kaspa Portfolio Projection (KPP) helps you project your Kaspa portfolio value.\n\n"
+                                 "1. Enter your portfolio name, KAS holdings, current price, and circulating supply.\n"
+                                 "2. Use 'Fetch Data' to get real-time Kaspa data from CoinGecko API.\n"
+                                 "3. Select your currency and generate a PDF report.\n\n"
+                                  "For support, visit the KKP Github Page: github.com/AceOmnia/kaspa-portfolio-projector/.")
+
+    def on_closing(self):
+        self.root.destroy()
+        sys.exit(0)
+
 if __name__ == "__main__":
-    create_gui()
+    root = tk.Tk()
+    app = KaspaPortfolioApp(root)
+    root.mainloop()
