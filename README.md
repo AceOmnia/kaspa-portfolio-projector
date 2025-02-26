@@ -1,20 +1,23 @@
 # Kaspa Portfolio Projection (KPP) - GUI Application
 
-A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report.
+A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report. The application also fetches real-time Kaspa price data from CoinGecko and allows users to export detailed projections in a well-formatted PDF.
 
 ## Features
 
-- Generates price intervals for Kaspa using linear and logarithmic scaling.
+- Fetches real-time Kaspa price data and circulating supply from CoinGecko.
+- Generates price intervals for Kaspa using both linear and logarithmic scaling.
 - Computes portfolio value and market capitalization at various price points.
-- Exports a well-formatted PDF report with a Kaspa logo, portfolio summary, and a price table.
-- Provides a user-friendly graphical interface for seamless input and report generation.
+- Provides an interactive graphical interface with input validation and tooltips.
+- Displays portfolio projections in a sortable table with color-coded price levels.
+- Exports a professional-grade PDF report including a price table and key portfolio metrics.
+- Supports multiple currencies (USD, EUR, BTC) for price and portfolio value conversions.
 
 ## Installation
 
 Ensure you have Python installed on your system. Then, install the required dependencies:
 
 ```sh
-pip install pandas fpdf numpy pillow
+pip install pandas fpdf numpy pillow tkinter pycoingecko fpdf logging
 ```
 
 <details>
@@ -42,7 +45,7 @@ If you do not have Python installed on your Windows computer, follow these steps
    python kpp.py
    ```
 
-3. Enter the required portfolio details in the GUI.
+3. Enter the required portfolio details in the GUI or fetch real-time data.
 4. Click the **Generate PDF** button to save your portfolio projection report.
 
 ## Requirements
@@ -53,11 +56,14 @@ This script requires the following Python libraries:
 - `numpy` (for price interval calculations)
 - `tkinter` (for the GUI application)
 - `PIL (Pillow)` (for image handling in the GUI)
+- `pycoingecko` (for real-time price fetching)
+- `logging` (for error tracking and debugging)
 
 ## Examples
 
 ### Main Application GUI
 ![Main GUI](screenshots/KPP-App-Screenshot.png)
+
 ### Main Application GUI - Filled In
 ![Main GUI - Filled In](screenshots/KPP-App-Screenshot-Filled_In.png)
 
@@ -66,16 +72,18 @@ This script requires the following Python libraries:
 
 ## Compiled Executable
 
-If you would like a compiled executable, I've compiled the python into an executable that can be run usinig the following command:
-   ```sh
-   pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
-   --icon="pics\kaspa.ico" `
-   --add-data "pics\kaspa.ico;pics" `
-   --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" `
-   --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
-   kpp.py
-   ```
-The file can be found in ![Compiled KPP](compiled/). The checksum is included as well.
+If you would like a compiled executable, the Python script can be converted into an executable using the following command:
+
+```sh
+pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" \
+--icon="pics\kaspa.ico" \
+--add-data "pics\kaspa.ico;pics" \
+--add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" \
+--add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" \
+kpp.py
+```
+
+The compiled file can be found in the `compiled/` directory. A checksum is included for verification.
 
 ## Contributing
 
