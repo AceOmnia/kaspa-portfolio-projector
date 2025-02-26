@@ -9,7 +9,6 @@ import sys
 from pycoingecko import CoinGeckoAPI
 import logging
 from functools import lru_cache
-import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -27,7 +26,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")  # Dark reverse for UI
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")  # Light background for PDF
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "4.7"
+VERSION = "0.2"
 COLOR_BG = "#70C7BA"  # Teal (Kaspa color)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#1A1C1E"  # Darker gray for logo contrast
@@ -55,17 +54,17 @@ NUMERIC_FIELDS = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (
 EXCHANGE_RATES = {"USD": 1.0, "EUR": 0.85, "BTC": 0.000013}
 
 # Price intervals generation
-def generate_price_intervals(current_price, min_price=0.05, max_price=200):
+def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     rounded_cent = round(current_price, 2)
-    red_intervals = np.linspace(min_price, rounded_cent - 0.01, num=7).tolist()
+    red_intervals = np.linspace(min_price, rounded_cent - 0.01, num=9).tolist()
     black_interval = [rounded_cent]
-    green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=60).tolist()
+    green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=240).tolist()
     return sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
 
 # Portfolio projection calculation
 def generate_portfolio_projection(kaspa_amount: float, current_price: float, circulating_supply_billion: float, currency: str) -> tuple[pd.DataFrame, str]:
-    min_price = 0.05  # Fixed default minimum price
-    max_price = 200   # Fixed default maximum price
+    min_price = 0.01  # Fixed default minimum price
+    max_price = 1000   # Fixed default maximum price
     circulating_supply = circulating_supply_billion * 1_000_000_000
     price_intervals = generate_price_intervals(current_price, min_price, max_price)
     rate = EXCHANGE_RATES.get(currency.upper(), EXCHANGE_RATES["USD"])  # Default to USD
@@ -184,7 +183,7 @@ class Tooltip:
 class KaspaPortfolioApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Kaspa Portfolio Projection (KPP)")
+        self.root.title(f"Kaspa Portfolio Projection (KPP) - Version {VERSION}")
         self.root.geometry("1500x900")
         self.root.iconbitmap(ICON_PATH)
         self.root.configure(bg=COLOR_BG)
@@ -240,7 +239,8 @@ class KaspaPortfolioApp:
             entry_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
             entry_frame.grid(row=row, column=1, padx=10, pady=8, sticky="e")
 
-            entry = tk.Entry(entry_frame, bg="white", fg="grey", font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightcolor=COLOR_BG, highlightthickness=2, width=30, justify="right")
+            # Use left alignment for the input fields in the red circle
+            entry = tk.Entry(entry_frame, bg="white", fg="grey", font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightcolor=COLOR_BG, highlightthickness=2, width=30, justify="left")
             entry.insert(0, placeholder if not default else default)
             entry.grid(row=0, column=0, padx=5, pady=0, sticky="e")
             entry.bind("<FocusIn>", lambda e, p=placeholder, d=default: self.clear_placeholder(e.widget, p, d, label))
@@ -268,7 +268,7 @@ class KaspaPortfolioApp:
         self.create_styled_button("Fetch Data", self.fetch_data, 4, 0)
         self.create_styled_button("Generate PDF", self.generate_pdf, 4, 1)
 
-        # Initialize metrics with tooltips
+        # Initialize metrics with tooltips (keeping right alignment for Portfolio Metrics)
         self.metrics_entries["Holdings"] = self.create_metric_entry(self.metrics_subframe, "Current KAS Holdings:", "Total KAS coins currently held")
         self.metrics_entries["Holdings"].grid(row=1, column=0, padx=(0, 10), pady=5, sticky="e")
         self.metrics_entries["Portfolio Value"] = self.create_metric_entry(self.metrics_subframe, "Current KAS Portfolio Value:", "Value of your KAS holdings in selected currency")
@@ -322,7 +322,6 @@ class KaspaPortfolioApp:
         style.map("Vertical.TScrollbar", background=[("active", "#4CAF50")], troughcolor=[("active", "#4CAF50")])
 
         # Version and help
-        tk.Label(self.main_frame, text=f"Version {VERSION} - Kaspa Community", bg=COLOR_BG, fg=COLOR_FG, font=("Arial", 11)).pack(pady=10)
         self.create_styled_button("Help", self.show_help, 5, 0, columnspan=2)
 
         # Fetch data on startup
@@ -369,7 +368,7 @@ class KaspaPortfolioApp:
             self.entries["Current Price (USD):"].delete(0, tk.END)
             self.entries["Current Price (USD):"].insert(0, f"{price:.4f}")
             self.entries["Circulating Supply (B):"].delete(0, tk.END)
-            self.entries["Circulating Supply (B):"].insert(0, f"{supply / 1_000_000_000:.1f}")
+            self.entries["Circulating Supply (B):"].insert(0, f"{supply / 1_000_000_000:.4f}")
             self.updated_fields["Current Price (USD):"] = True
             self.show_check_mark("Current Price (USD):")
             self.updated_fields["Circulating Supply (B):"] = True
@@ -493,13 +492,24 @@ class KaspaPortfolioApp:
                 # Update table with sorting capability and alternating colors
                 for item in self.tree.get_children():
                     self.tree.delete(item)
+                items = []
                 for index, (_, row) in enumerate(df.iterrows()):
                     tag = "even" if index % 2 == 0 else "odd"  # Alternate row colors
-                    self.tree.insert("", "end", values=(
+                    item = self.tree.insert("", "end", values=(
                         f"{symbol}{row['Price']:.2f}",
                         f"{symbol}{row['Portfolio']:,.0f}",  # Remove decimal for brevity
                         f"{symbol}{row['Market Cap']:,.0f}"  # Remove decimal for brevity
                     ), tags=(row["Color"], tag))
+                    items.append(item)
+
+                # Find the index of the black line (current price)
+                current_price = round(price_usd, 2)
+                black_line_index = df.index[df['Price'] == current_price].tolist()[0]
+                # Scroll to show the last red row (one row before the black line, if it exists)
+                if black_line_index > 0:
+                    self.tree.see(items[black_line_index - 1])
+                    # Adjust the scroll position to ensure the last red row is at the top
+                    self.tree.yview_moveto((black_line_index - 1) / len(items))
 
                 # Update metrics
                 circulating_supply = supply * 1_000_000_000
@@ -608,7 +618,7 @@ class KaspaPortfolioApp:
                                  "1. Enter your portfolio name, KAS holdings, current price, and circulating supply.\n"
                                  "2. Use 'Fetch Data' to get real-time Kaspa data from CoinGecko.\n"
                                  "3. Select your currency and generate a PDF report.\n\n"
-                                 "For support, visit the Kaspa community website.")
+                                  "For support, visit the Kaspa community website.")
 
     def on_closing(self):
         self.root.destroy()
