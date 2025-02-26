@@ -72,16 +72,15 @@ This script requires the following Python libraries:
 
 ## Compiled Executable
 
-If you would like a compiled executable, the Python script can be converted into an executable using the following command:
-
-```sh
-pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" \
---icon="pics\kaspa.ico" \
---add-data "pics\kaspa.ico;pics" \
---add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" \
---add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" \
-kpp.py
-```
+If you would like a compiled executable, I've compiled the python into an executable that can be run usinig the following command:
+   ```sh
+   pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
+   --icon="pics\kaspa.ico" `
+   --add-data "pics\kaspa.ico;pics" `
+   --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" `
+   --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
+   kpp.py
+   ```
 
 The compiled file can be found in the `compiled/` directory. A checksum is included for verification.
 
