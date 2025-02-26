@@ -616,9 +616,9 @@ class KaspaPortfolioApp:
     def show_help(self):
         messagebox.showinfo("Help", "Kaspa Portfolio Projection (KPP) helps you project your Kaspa portfolio value.\n\n"
                                  "1. Enter your portfolio name, KAS holdings, current price, and circulating supply.\n"
-                                 "2. Use 'Fetch Data' to get real-time Kaspa data from CoinGecko.\n"
+                                 "2. Use 'Fetch Data' to get real-time Kaspa data from CoinGecko API.\n"
                                  "3. Select your currency and generate a PDF report.\n\n"
-                                  "For support, visit the Kaspa community website.")
+                                  "For support, visit the KKP Github Page: github.com/AceOmnia/kaspa-portfolio-projector/.")
 
     def on_closing(self):
         self.root.destroy()
