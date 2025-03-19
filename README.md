@@ -72,7 +72,13 @@ This script requires the following Python libraries:
 
 ## Compiled Executable
 
-If you would like a compiled executable, I've compiled the python into an executable that can be run usinig the following command:
+If you would like a compiled executable, install the required dependencies for compiled executable generation:
+
+```sh
+pip install pyinstaller
+```
+
+I've compiled the python application into an executable that can be run usinig the following command:
    ```sh
    pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
    --icon="pics\kaspa.ico" `

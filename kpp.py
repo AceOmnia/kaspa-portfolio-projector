@@ -1,3 +1,32 @@
+"""
+Kaspa Portfolio Projection (KPP)
+
+This module provides a GUI application for projecting the value of a Kaspa cryptocurrency portfolio.
+It fetches real-time data for Kaspa and Bitcoin from the CoinGecko API, calculates various portfolio metrics,
+and generates a PDF report with projections.
+
+**Main Class:**
+- `KaspaPortfolioApp`: The main application class that handles the GUI and logic for portfolio projection.
+
+**Dependencies:**
+- `pandas`: For data manipulation and analysis.
+- `fpdf`: For generating PDF reports.
+- `numpy`: For numerical operations and calculations.
+- `tkinter`: For creating the graphical user interface.
+- `PIL (Pillow)`: For image processing and handling.
+- `pycoingecko`: For fetching cryptocurrency data from the CoinGecko API.
+
+**Author:** Kapsa Community
+**Version:** 0.3
+
+**Usage:**
+Run the script to launch the GUI application. Enter your portfolio details, fetch real-time data,
+select a currency, and generate a PDF report.
+
+**Support:**
+For additional help or issues, visit: [https://github.com/AceOmnia/kaspa-portfolio-projector/](https://github.com/AceOmnia/kaspa-portfolio-projector/)
+"""
+
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
