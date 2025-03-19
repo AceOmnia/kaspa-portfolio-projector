@@ -27,7 +27,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
