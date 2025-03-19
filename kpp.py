@@ -56,7 +56,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3"
+VERSION = "0.3.1"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -146,7 +146,7 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
 
     # Updated summary sentence (removed reference to current price)
     summary = (
-        f"The {formatted_title[:-18]} Kaspa portfolio, holding {kaspa_amount:,.2f} KAS with a current portfolio "
+        f"The {formatted_title[:-21]} Kaspa portfolio, holding {kaspa_amount:,.2f} KAS with a current portfolio "
         f"value of {symbol}{portfolio_value:,.2f} and a market cap of {symbol}{market_cap:,.2f}, "
         f"would require a KAS price of {symbol}{price_needed_for_1m:,.2f} and a market cap of "
         f"{symbol}{market_cap_needed_for_1m:,.2f} - approximately {market_cap_ratio:.2f} times the "
