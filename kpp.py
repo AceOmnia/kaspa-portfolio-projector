@@ -17,7 +17,7 @@ and generates a PDF report with projections.
 - `pycoingecko`: For fetching cryptocurrency data from the CoinGecko API.
 
 **Author:** Kapsa Community
-**Version:** 0.3
+**Version:** 0.3.1
 
 **Usage:**
 Run the script to launch the GUI application. Enter your portfolio details, fetch real-time data,
@@ -78,7 +78,13 @@ DEFAULTS = {
 }
 
 NUMERIC_FIELDS = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (B):"]
-EXCHANGE_RATES = {"USD": 1.0, "EUR": 0.85, "BTC": 0.000013}
+EXCHANGE_RATES = {
+    "USD": 1.0,      # Base currency
+    "EUR": 0.92,     # 1 USD = ~0.92 EUR
+    "GBP": 0.79,     # 1 USD = ~0.79 GBP
+    "JPY": 149.50,   # 1 USD = ~149.50 JPY
+    "AUD": 1.55      # 1 USD = ~1.55 AUD
+}
 
 # Price intervals generation
 def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
@@ -93,7 +99,7 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
     circulating_supply = circulating_supply_billion * 1_000_000_000
     price_intervals = generate_price_intervals(current_price)
     rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
-    symbol = {"USD": "$", "EUR": "€", "BTC": "₿"}.get(currency.upper(), "$")
+    symbol = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$"}.get(currency.upper(), "$")
 
     data = {
         "Price": price_intervals,
@@ -136,7 +142,7 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
 
     circulating_supply = circulating_supply_billion * 1_000_000_000
     rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
-    symbol = {"USD": "$", "EUR": "€", "BTC": "₿"}.get(currency.upper(), "$")
+    symbol = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$"}.get(currency.upper(), "$")
     market_cap = current_price * circulating_supply * rate
     portfolio_value = kaspa_amount * current_price * rate
     price_needed_for_1m = 1_000_000 / kaspa_amount if kaspa_amount > 0 else 0
@@ -304,10 +310,10 @@ class KaspaPortfolioApp:
             x_mark.grid(row=0, column=1, padx=5)
             self.x_marks[label] = x_mark
 
-        # Currency selection
+        # Currency selection (updated to remove BTC and add GBP, JPY, AUD)
         tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=1, column=2, padx=10, pady=8, sticky="w")
         self.currency_var = tk.StringVar(value="USD")
-        currency_menu = tk.OptionMenu(self.input_subframe, self.currency_var, "USD", "EUR", "BTC", command=self.update_display_on_currency_change)
+        currency_menu = tk.OptionMenu(self.input_subframe, self.currency_var, "USD", "EUR", "GBP", "JPY", "AUD", command=self.update_display_on_currency_change)
         currency_menu.config(bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightthickness=2)
         currency_menu.grid(row=1, column=3, padx=5, pady=8, sticky="w")
         Tooltip(currency_menu, "Select the currency for your portfolio projections")
@@ -592,7 +598,7 @@ class KaspaPortfolioApp:
             if btc_market_cap > 0:
                 self.btc_summary_line1.config(text="KAS Market cap needed for $1M portfolio:")
                 self.btc_summary_line2.config(text=f"is about {market_cap_ratio:.6f} times the")
-                self.btc_summary_line3.config(text=f"Current Bitcoin market cap of {symbol}{btc_market_cap_in_currency:,.2f}.")
+                self.btc_summary_line3.config(text=f"current Bitcoin market cap of {symbol}{btc_market_cap_in_currency:,.2f}.")
             else:
                 self.btc_summary_line1.config(text="Bitcoin market cap data unavailable.")
                 self.btc_summary_line2.config(text="")
