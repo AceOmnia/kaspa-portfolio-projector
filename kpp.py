@@ -1,32 +1,3 @@
-"""
-Kaspa Portfolio Projection (KPP)
-
-This module provides a GUI application for projecting the value of a Kaspa cryptocurrency portfolio.
-It fetches real-time data for Kaspa and Bitcoin from the CoinGecko API, calculates various portfolio metrics,
-and generates a PDF report with projections.
-
-**Main Class:**
-- `KaspaPortfolioApp`: The main application class that handles the GUI and logic for portfolio projection.
-
-**Dependencies:**
-- `pandas`: For data manipulation and analysis.
-- `fpdf`: For generating PDF reports.
-- `numpy`: For numerical operations and calculations.
-- `tkinter`: For creating the graphical user interface.
-- `PIL (Pillow)`: For image processing and handling.
-- `pycoingecko`: For fetching cryptocurrency data from the CoinGecko API.
-
-**Author:** Kapsa Community
-**Version:** 0.3.2
-
-**Usage:**
-Run the script to launch the GUI application. Enter your portfolio details, fetch real-time data,
-select a currency, and generate a PDF report.
-
-**Support:**
-For additional help or issues, visit: [https://github.com/AceOmnia/kaspa-portfolio-projector/](https://github.com/AceOmnia/kaspa-portfolio-projector/)
-"""
-
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
@@ -523,13 +494,14 @@ class KaspaPortfolioApp:
                 self.entries["KAS Holdings:"].delete(0, tk.END)
                 self.entries["KAS Holdings:"].insert(0, "0")
             self.updated_fields["KAS Holdings:"] = True
-            if float(self.entries["KAS Holdings:"].get().replace(',', '')) > 0:
+            kas_holdings_value = float(self.entries["KAS Holdings:"].get().replace(',', ''))
+            if kas_holdings_value > 0:
                 self.show_check_mark("KAS Holdings:")
                 self.hide_x_mark("KAS Holdings:")
+                self.update_display_if_valid()
             else:
                 self.hide_check_mark("KAS Holdings:")
                 self.show_x_mark("KAS Holdings:")
-            self.update_display_if_valid()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch data: {str(e)}")
         finally:
@@ -594,12 +566,22 @@ class KaspaPortfolioApp:
                         raise ValueError("Please enter a positive number.")
                     widget.config(fg=COLOR_FG)
                     self.updated_fields[label] = True
-                    if label == "KAS Holdings:" and float_value > 0:
-                        self.show_check_mark(label)
-                        self.hide_x_mark(label)
-                    elif label in NUMERIC_FIELDS:
-                        self.show_check_mark(label)
-                        self.hide_x_mark(label)
+                    if label == "KAS Holdings:":
+                        if float_value > 0:
+                            self.show_check_mark(label)
+                            self.hide_x_mark(label)
+                        else:
+                            self.hide_check_mark(label)
+                            self.show_x_mark(label)
+                            raise ValueError("KAS Holdings must be greater than 0.")
+                    else:
+                        # For other numeric fields like Current Price and Circulating Supply
+                        if float_value >= 0:
+                            self.show_check_mark(label)
+                            self.hide_x_mark(label)
+                        else:
+                            self.hide_check_mark(label)
+                            self.show_x_mark(label)
                     self.update_display_if_valid()
                 except ValueError as e:
                     self.updated_fields[label] = False
