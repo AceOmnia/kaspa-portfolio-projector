@@ -1,32 +1,3 @@
-"""
-Kaspa Portfolio Projection (KPP)
-
-This module provides a GUI application for projecting the value of a Kaspa cryptocurrency portfolio.
-It fetches real-time data for Kaspa and Bitcoin from the CoinGecko API, calculates various portfolio metrics,
-and generates a PDF report with projections.
-
-**Main Class:**
-- `KaspaPortfolioApp`: The main application class that handles the GUI and logic for portfolio projection.
-
-**Dependencies:**
-- `pandas`: For data manipulation and analysis.
-- `fpdf`: For generating PDF reports.
-- `numpy`: For numerical operations and calculations.
-- `tkinter`: For creating the graphical user interface.
-- `PIL (Pillow)`: For image processing and handling.
-- `pycoingecko`: For fetching cryptocurrency data from the CoinGecko API.
-
-**Author:** Kapsa Community
-**Version:** 0.3
-
-**Usage:**
-Run the script to launch the GUI application. Enter your portfolio details, fetch real-time data,
-select a currency, and generate a PDF report.
-
-**Support:**
-For additional help or issues, visit: [https://github.com/AceOmnia/kaspa-portfolio-projector/](https://github.com/AceOmnia/kaspa-portfolio-projector/)
-"""
-
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
@@ -62,6 +33,10 @@ COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
 CHECKMARK_COLOR = "#006600"  # Green
 X_MARK_COLOR = "#FF0000"  # Red for the "X"
+
+# Button colors
+BUTTON_BG = "#00C4B4"  # Cyan
+BUTTON_FG = "#000000"  # Black (updated to black text)
 
 PLACEHOLDERS = {
     "Portfolio Name:": "e.g., My Kaspa Holdings",
@@ -297,7 +272,7 @@ class KaspaPortfolioApp:
     def __init__(self, root):
         self.root = root
         self.root.title(f"Kaspa Portfolio Projection (KPP) - Version {VERSION}")
-        self.root.geometry("1500x900")
+        self.root.geometry("1300x900")
         self.root.iconbitmap(ICON_PATH)
         self.root.configure(bg=COLOR_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -346,11 +321,10 @@ class KaspaPortfolioApp:
         # Configure column weights to ensure alignment
         self.input_subframe.grid_columnconfigure(0, weight=1)  # Left column for labels
         self.input_subframe.grid_columnconfigure(1, weight=2)  # Middle column for entries
-        self.input_subframe.grid_columnconfigure(2, weight=1)  # Right column for currency label
-        self.input_subframe.grid_columnconfigure(3, weight=1)  # Right column for currency dropdown
+        self.input_subframe.grid_columnconfigure(2, weight=1)  # Right column for check/x marks
 
         # Input fields with title moved down 5 pixels
-        tk.Label(self.input_subframe, text="Portfolio Input", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=4, pady=(5, 5), sticky="nsew")
+        tk.Label(self.input_subframe, text="Portfolio Input", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=3, pady=(5, 5), sticky="nsew")
         self.entries = {}
         self.check_marks = {}
         self.x_marks = {}
@@ -358,11 +332,10 @@ class KaspaPortfolioApp:
         self.metrics_entries = {}
         self.fetched_data = {}
 
-        for label in PLACEHOLDERS:
-            row = list(PLACEHOLDERS.keys()).index(label) + 1
-            tk.Label(self.input_subframe, text=label, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=row, column=0, padx=10, pady=8, sticky="w")
+        for i, label in enumerate(PLACEHOLDERS, start=1):
+            tk.Label(self.input_subframe, text=label, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=i, column=0, padx=10, pady=8, sticky="w")
             entry_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
-            entry_frame.grid(row=row, column=1, padx=10, pady=8, sticky="e")
+            entry_frame.grid(row=i, column=1, padx=10, pady=8, sticky="e")
             entry = tk.Entry(entry_frame, bg="white", fg="grey", font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightthickness=2, width=30)
             entry.insert(0, PLACEHOLDERS[label] if not DEFAULTS[label] else DEFAULTS[label])
             entry.grid(row=0, column=0, padx=5)
@@ -383,18 +356,26 @@ class KaspaPortfolioApp:
             x_mark.grid(row=0, column=1, padx=5)
             self.x_marks[label] = x_mark
 
-        # Currency selection (updated to remove BTC and add GBP, JPY, AUD)
-        tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=1, column=2, padx=10, pady=8, sticky="w")
+        # Currency selection (aligned with white fields, with green checkmark)
+        currency_row = len(PLACEHOLDERS) + 1
+        tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=currency_row, column=0, padx=10, pady=8, sticky="w")
+        currency_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
+        currency_frame.grid(row=currency_row, column=1, padx=10, pady=8, sticky="e")
         self.currency_var = tk.StringVar(value="USD")
-        currency_menu = tk.OptionMenu(self.input_subframe, self.currency_var, "USD", "EUR", "GBP", "JPY", "AUD", command=self.update_display_on_currency_change)
-        currency_menu.config(bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightthickness=2)
-        currency_menu.grid(row=1, column=3, padx=5, pady=8, sticky="w")
+        currency_menu = tk.OptionMenu(currency_frame, self.currency_var, "USD", "EUR", "GBP", "JPY", "AUD", command=self.update_display_on_currency_change)
+        currency_menu.config(bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightthickness=2, width=10)
+        currency_menu.grid(row=0, column=0, padx=5)
+        # Add permanent green checkmark for currency
+        currency_check_mark = tk.Label(currency_frame, text="✔", bg=COLOR_FG, fg=CHECKMARK_COLOR, font=("Arial", 12, "bold"))
+        currency_check_mark.grid(row=0, column=1, padx=5)
+        currency_check_mark.grid()  # Always visible
         Tooltip(currency_menu, "Select the currency for your portfolio projections")
 
-        # Buttons (adjusted alignment)
-        self.create_styled_button("Generate PDF", self.generate_pdf, 5, 0, columnspan=1)
-        self.create_styled_button("Fetch Real Time Data", self.fetch_data, 5, 1, columnspan=1, sticky="ew")  # Reduced columnspan and added sticky
-        self.create_styled_button("Help", self.show_help, 6, 0, columnspan=2)
+        # Buttons with updated black text
+        button_row = currency_row + 1
+        self.create_styled_button("Generate PDF", self.generate_pdf, button_row, 0)
+        self.create_styled_button("Fetch Real Time Data", self.fetch_data, button_row, 1)
+        self.create_styled_button("Help", self.show_help, button_row + 1, 0, columnspan=2)
 
         # Metrics with title moved down 5 pixels to align with Portfolio Input
         tk.Label(self.metrics_subframe, text="Portfolio Metrics", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, pady=(5, 5), sticky="nsew")
@@ -458,11 +439,11 @@ class KaspaPortfolioApp:
 
         self.fetch_data_on_startup()
 
-    def create_styled_button(self, text, command, row, column, columnspan=1, sticky="ew"):
-        button = tk.Button(self.input_subframe, text=text, command=command, bg=COLOR_BG, fg=COLOR_FG, font=("Arial", 12, "bold"), relief="flat", bd=0, padx=20, pady=12)
-        button.grid(row=row, column=column, columnspan=columnspan, pady=12, padx=10, sticky=sticky)
-        button.bind("<Enter>", lambda e: button.config(bg=COLOR_FG, fg=COLOR_BG))
-        button.bind("<Leave>", lambda e: button.config(bg=COLOR_BG, fg=COLOR_FG))
+    def create_styled_button(self, text, command, row, column, columnspan=1):
+        button = tk.Button(self.input_subframe, text=text, command=command, bg=BUTTON_BG, fg=BUTTON_FG, font=("Arial", 12, "bold"), relief="flat", bd=0, padx=20, pady=12)
+        button.grid(row=row, column=column, columnspan=columnspan, pady=12, padx=10, sticky="ew")
+        button.bind("<Enter>", lambda e: button.config(bg=COLOR_FG, fg=BUTTON_FG))
+        button.bind("<Leave>", lambda e: button.config(bg=BUTTON_BG, fg=BUTTON_FG))
         return button
 
     def create_metric_entry(self, parent, label_text, tooltip_text=""):
