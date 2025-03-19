@@ -17,7 +17,7 @@ and generates a PDF report with projections.
 - `pycoingecko`: For fetching cryptocurrency data from the CoinGecko API.
 
 **Author:** Kapsa Community
-**Version:** 0.3.1
+**Version:** 0.3.2
 
 **Usage:**
 Run the script to launch the GUI application. Enter your portfolio details, fetch real-time data,
@@ -56,7 +56,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -97,15 +97,88 @@ def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
 # Portfolio projection calculation
 def generate_portfolio_projection(kaspa_amount, current_price, circulating_supply_billion, currency):
     circulating_supply = circulating_supply_billion * 1_000_000_000
-    price_intervals = generate_price_intervals(current_price)
+    price_intervals_usd = generate_price_intervals(current_price)  # Generate intervals in USD
     rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
     symbol = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$"}.get(currency.upper(), "$")
 
+    # Determine colors based on USD prices
+    colors = ["red" if price < round(current_price, 2) else "black" if price == round(current_price, 2) else "green" for price in price_intervals_usd]
+
+    # Convert price intervals to selected currency for display
+    price_intervals_display = [round(price * rate, 2) for price in price_intervals_usd]
+
+    # Prepare initial data
+    portfolio_values = [kaspa_amount * price * rate for price in price_intervals_usd]
+    market_caps = [circulating_supply * price * rate for price in price_intervals_usd]
+
+    # Find the index of the black price
+    black_idx = colors.index("black")
+    black_display_price = price_intervals_display[black_idx]
+
+    # If currency is not USD, handle duplicates in the red and green sections
+    if currency.upper() != "USD":
+        # Handle red section
+        red_indices = list(range(black_idx))  # Indices of red prices
+        red_data = [
+            (price_intervals_display[i], price_intervals_usd[i], portfolio_values[i], market_caps[i], colors[i])
+            for i in red_indices
+        ]
+        red_data.sort(key=lambda x: (x[0], x[1]))
+        seen = {}
+        deduplicated_red_data = []
+        for data in red_data:
+            display_price = data[0]
+            if display_price not in seen:
+                seen[display_price] = data
+                deduplicated_red_data.append(data)
+        if deduplicated_red_data and deduplicated_red_data[-1][0] == black_display_price:
+            deduplicated_red_data.pop()  # Remove last red if it matches black
+        red_display_prices = [data[0] for data in deduplicated_red_data]
+        red_usd_prices = [data[1] for data in deduplicated_red_data]
+        red_portfolio_values = [data[2] for data in deduplicated_red_data]
+        red_market_caps = [data[3] for data in deduplicated_red_data]
+        red_colors = [data[4] for data in deduplicated_red_data]
+
+        # Handle green section
+        green_indices = list(range(black_idx + 1, len(price_intervals_usd)))  # Indices of green prices
+        green_data = [
+            (price_intervals_display[i], price_intervals_usd[i], portfolio_values[i], market_caps[i], colors[i])
+            for i in green_indices
+        ]
+        green_data.sort(key=lambda x: (x[0], x[1]))
+        seen = {}
+        deduplicated_green_data = []
+        for data in green_data:
+            display_price = data[0]
+            if display_price not in seen:
+                seen[display_price] = data
+                deduplicated_green_data.append(data)
+        if deduplicated_green_data and deduplicated_green_data[0][0] == black_display_price:
+            deduplicated_green_data.pop(0)  # Remove first green if it matches black
+        green_display_prices = [data[0] for data in deduplicated_green_data]
+        green_usd_prices = [data[1] for data in deduplicated_green_data]
+        green_portfolio_values = [data[2] for data in deduplicated_green_data]
+        green_market_caps = [data[3] for data in deduplicated_green_data]
+        green_colors = [data[4] for data in deduplicated_green_data]
+
+        # Reconstruct the full data with deduplicated red and green sections
+        final_display_prices = red_display_prices + [price_intervals_display[black_idx]] + green_display_prices
+        final_usd_prices = red_usd_prices + [price_intervals_usd[black_idx]] + green_usd_prices
+        final_portfolio_values = red_portfolio_values + [portfolio_values[black_idx]] + green_portfolio_values
+        final_market_caps = red_market_caps + [market_caps[black_idx]] + green_market_caps
+        final_colors = red_colors + [colors[black_idx]] + green_colors
+    else:
+        final_display_prices = price_intervals_display
+        final_usd_prices = price_intervals_usd
+        final_portfolio_values = portfolio_values
+        final_market_caps = market_caps
+        final_colors = colors
+
     data = {
-        "Price": price_intervals,
-        "Portfolio": [kaspa_amount * price * rate for price in price_intervals],
-        "Market Cap": [circulating_supply * price * rate for price in price_intervals],
-        "Color": ["red" if price < round(current_price, 2) else "black" if price == round(current_price, 2) else "green" for price in price_intervals]
+        "Price": final_display_prices,  # Display prices in selected currency
+        "Portfolio": final_portfolio_values,
+        "Market Cap": final_market_caps,
+        "Color": final_colors  # Colors remain based on USD price comparison
     }
     return pd.DataFrame(data), symbol
 
@@ -565,7 +638,8 @@ class KaspaPortfolioApp:
                 tag = "even" if i % 2 == 0 else "odd"
                 item = self.tree.insert("", "end", values=(f"{symbol}{row['Price']:.2f}", f"{symbol}{row['Portfolio']:,.0f}", f"{symbol}{row['Market Cap']:,.0f}"), tags=(row["Color"], tag))
                 items.append(item)
-            black_line_index = df.index[df['Price'] == round(price_usd, 2)].tolist()[0]
+            # Find the black line index based on the USD price before conversion
+            black_line_index = df.index[df['Color'] == "black"].tolist()[0]
             if black_line_index > 0:
                 self.tree.see(items[black_line_index - 1])
                 self.tree.yview_moveto((black_line_index - 1) / len(items))
@@ -573,13 +647,19 @@ class KaspaPortfolioApp:
             # Update metrics
             circulating_supply = supply * 1_000_000_000
             rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
-            market_cap = price_usd * circulating_supply * rate
-            portfolio_value = kaspa * price_usd * rate
-            price_needed_for_1m = 1_000_000 / kaspa if kaspa > 0 else 0
-            market_cap_needed_for_1m = price_needed_for_1m * circulating_supply
-            btc_market_cap = self.fetched_data.get('btc_market_cap', 0)
-            btc_market_cap_in_currency = btc_market_cap * rate
-            market_cap_ratio = market_cap_needed_for_1m / btc_market_cap if btc_market_cap > 0 else 0
+            market_cap_usd = price_usd * circulating_supply
+            portfolio_value_usd = kaspa * price_usd
+            price_needed_for_1m_usd = 1_000_000 / kaspa if kaspa > 0 else 0
+            market_cap_needed_for_1m_usd = price_needed_for_1m_usd * circulating_supply
+            btc_market_cap_usd = self.fetched_data.get('btc_market_cap', 0)
+
+            # Convert to selected currency
+            market_cap = market_cap_usd * rate
+            portfolio_value = portfolio_value_usd * rate
+            price_needed_for_1m = price_needed_for_1m_usd * rate
+            market_cap_needed_for_1m = market_cap_needed_for_1m_usd * rate
+            btc_market_cap = btc_market_cap_usd * rate
+            market_cap_ratio = market_cap_needed_for_1m_usd / btc_market_cap_usd if btc_market_cap_usd > 0 else 0
 
             for key, value in [
                 ("Holdings", f"{kaspa:,.2f} KAS"),
@@ -595,10 +675,10 @@ class KaspaPortfolioApp:
                 entry.config(state='disabled')
 
             # Update Bitcoin summary frame labels with more decimal places
-            if btc_market_cap > 0:
+            if btc_market_cap_usd > 0:
                 self.btc_summary_line1.config(text="KAS Market cap needed for $1M portfolio:")
                 self.btc_summary_line2.config(text=f"is about {market_cap_ratio:.6f} times the")
-                self.btc_summary_line3.config(text=f"current Bitcoin market cap of {symbol}{btc_market_cap_in_currency:,.2f}.")
+                self.btc_summary_line3.config(text=f"current Bitcoin market cap of {symbol}{btc_market_cap:,.2f}.")
             else:
                 self.btc_summary_line1.config(text="Bitcoin market cap data unavailable.")
                 self.btc_summary_line2.config(text="")
@@ -610,7 +690,7 @@ class KaspaPortfolioApp:
     def sort_table(self, column):
         items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
         col_idx = {"Price": 0, "Portfolio": 1, "MarketCap": 2}[column]
-        items.sort(key=lambda x: float(x[0][col_idx].replace('$', '').replace(',', '')))
+        items.sort(key=lambda x: float(x[0][col_idx].replace('$', '').replace('€', '').replace('£', '').replace('¥', '').replace('A$', '').replace(',', '')))
         for i, (_, item) in enumerate(items):
             self.tree.move(item, '', i)
 
