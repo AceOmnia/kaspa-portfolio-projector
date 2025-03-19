@@ -10,7 +10,7 @@ A Python application for generating Kaspa portfolio projections and reports. Thi
 - Provides an interactive graphical interface with input validation and tooltips.
 - Displays portfolio projections in a sortable table with color-coded price levels.
 - Exports a professional-grade PDF report including a price table and key portfolio metrics.
-- Supports multiple currencies (USD, EUR, BTC) for price and portfolio value conversions.
+- Supports multiple currencies (USD, EUR, GBP, etc) for price and portfolio value conversions.
 
 ## Installation
 
