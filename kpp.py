@@ -27,16 +27,14 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
 CHECKMARK_COLOR = "#006600"  # Green
 X_MARK_COLOR = "#FF0000"  # Red for the "X"
-
-# Button colors
 BUTTON_BG = "#00C4B4"  # Cyan
-BUTTON_FG = "#000000"  # Black (updated to black text)
+BUTTON_FG = "#000000"  # Black
 
 PLACEHOLDERS = {
     "Portfolio Name:": "e.g., My Kaspa Holdings",
@@ -54,11 +52,11 @@ DEFAULTS = {
 
 NUMERIC_FIELDS = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (B):"]
 EXCHANGE_RATES = {
-    "USD": 1.0,      # Base currency
-    "EUR": 0.92,     # 1 USD = ~0.92 EUR
-    "GBP": 0.79,     # 1 USD = ~0.79 GBP
-    "JPY": 149.50,   # 1 USD = ~149.50 JPY
-    "AUD": 1.55      # 1 USD = ~1.55 AUD
+    "USD": 1.0,
+    "EUR": 0.92,
+    "GBP": 0.79,
+    "JPY": 149.50,
+    "AUD": 1.55
 }
 
 # Price intervals generation
@@ -69,7 +67,7 @@ def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=240).tolist()
     return sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
 
-# Portfolio projection calculation
+# Portfolio projection calculation with Price_USD added
 def generate_portfolio_projection(kaspa_amount, current_price, circulating_supply_billion, currency):
     circulating_supply = circulating_supply_billion * 1_000_000_000
     price_intervals_usd = generate_price_intervals(current_price)  # Generate intervals in USD
@@ -90,10 +88,9 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
     black_idx = colors.index("black")
     black_display_price = price_intervals_display[black_idx]
 
-    # If currency is not USD, handle duplicates in the red and green sections
     if currency.upper() != "USD":
         # Handle red section
-        red_indices = list(range(black_idx))  # Indices of red prices
+        red_indices = list(range(black_idx))
         red_data = [
             (price_intervals_display[i], price_intervals_usd[i], portfolio_values[i], market_caps[i], colors[i])
             for i in red_indices
@@ -107,7 +104,7 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
                 seen[display_price] = data
                 deduplicated_red_data.append(data)
         if deduplicated_red_data and deduplicated_red_data[-1][0] == black_display_price:
-            deduplicated_red_data.pop()  # Remove last red if it matches black
+            deduplicated_red_data.pop()
         red_display_prices = [data[0] for data in deduplicated_red_data]
         red_usd_prices = [data[1] for data in deduplicated_red_data]
         red_portfolio_values = [data[2] for data in deduplicated_red_data]
@@ -115,7 +112,7 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
         red_colors = [data[4] for data in deduplicated_red_data]
 
         # Handle green section
-        green_indices = list(range(black_idx + 1, len(price_intervals_usd)))  # Indices of green prices
+        green_indices = list(range(black_idx + 1, len(price_intervals_usd)))
         green_data = [
             (price_intervals_display[i], price_intervals_usd[i], portfolio_values[i], market_caps[i], colors[i])
             for i in green_indices
@@ -129,43 +126,42 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
                 seen[display_price] = data
                 deduplicated_green_data.append(data)
         if deduplicated_green_data and deduplicated_green_data[0][0] == black_display_price:
-            deduplicated_green_data.pop(0)  # Remove first green if it matches black
+            deduplicated_green_data.pop(0)
         green_display_prices = [data[0] for data in deduplicated_green_data]
         green_usd_prices = [data[1] for data in deduplicated_green_data]
         green_portfolio_values = [data[2] for data in deduplicated_green_data]
         green_market_caps = [data[3] for data in deduplicated_green_data]
         green_colors = [data[4] for data in deduplicated_green_data]
 
-        # Reconstruct the full data with deduplicated red and green sections
+        # Reconstruct the full data
         final_display_prices = red_display_prices + [price_intervals_display[black_idx]] + green_display_prices
         final_usd_prices = red_usd_prices + [price_intervals_usd[black_idx]] + green_usd_prices
         final_portfolio_values = red_portfolio_values + [portfolio_values[black_idx]] + green_portfolio_values
         final_market_caps = red_market_caps + [market_caps[black_idx]] + green_market_caps
         final_colors = red_colors + [colors[black_idx]] + green_colors
-    else:
-        final_display_prices = price_intervals_display
-        final_usd_prices = price_intervals_usd
-        final_portfolio_values = portfolio_values
-        final_market_caps = market_caps
-        final_colors = colors
 
-    data = {
-        "Price": final_display_prices,  # Display prices in selected currency
-        "Portfolio": final_portfolio_values,
-        "Market Cap": final_market_caps,
-        "Color": final_colors  # Colors remain based on USD price comparison
-    }
+        data = {
+            "Price": final_display_prices,
+            "Price_USD": final_usd_prices,
+            "Portfolio": final_portfolio_values,
+            "Market Cap": final_market_caps,
+            "Color": final_colors
+        }
+    else:
+        data = {
+            "Price": price_intervals_display,
+            "Price_USD": price_intervals_usd,
+            "Portfolio": portfolio_values,
+            "Market Cap": market_caps,
+            "Color": colors
+        }
     return pd.DataFrame(data), symbol
 
-# PDF generation
+# PDF generation (unchanged)
 def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion, currency, btc_market_cap):
-    # Capitalize the first letter of the title
     formatted_title = title.capitalize() + " Portfolio Projection" if title else "Unnamed Portfolio Projection"
-
     pdf = FPDF()
     pdf.add_page()
-
-    # Header
     pdf.image(LOGO_PATH_LIGHT, x=10, y=6, w=50)
     pdf.set_font("Helvetica", 'B', 22)
     title_width = pdf.get_string_width(formatted_title)
@@ -182,12 +178,9 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     pdf.set_draw_color(128, 128, 128)
     pdf.line(10, 30, 200, 30)
     pdf.ln(10)
-
-    # Portfolio Facts
     pdf.set_font("Helvetica", 'B', 14)
     pdf.cell(0, 8, "Portfolio Facts", ln=True)
     pdf.ln(4)
-
     circulating_supply = circulating_supply_billion * 1_000_000_000
     rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
     symbol = {"USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$"}.get(currency.upper(), "$")
@@ -197,8 +190,6 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     market_cap_needed_for_1m = price_needed_for_1m * circulating_supply
     btc_market_cap_in_currency = btc_market_cap * rate
     market_cap_ratio = market_cap_needed_for_1m / btc_market_cap if btc_market_cap > 0 else 0
-
-    # Updated summary sentence (removed reference to current price)
     summary = (
         f"The {formatted_title[:-21]} Kaspa portfolio, holding {kaspa_amount:,.2f} KAS with a current portfolio "
         f"value of {symbol}{portfolio_value:,.2f} and a market cap of {symbol}{market_cap:,.2f}, "
@@ -209,8 +200,6 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     pdf.set_font("Helvetica", '', 10)
     pdf.multi_cell(0, 5, summary)
     pdf.ln(5)
-
-    # Individual metrics with Current KAS Price as the first line with 4 decimal places
     pdf.set_font("Helvetica", '', 11)
     for label, value in [
         ("Current KAS Price:", f"{symbol}{current_price:.4f}"),
@@ -223,8 +212,6 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
         pdf.cell(90, 6, label, ln=False)
         pdf.cell(0, 6, value, ln=True, align='R')
     pdf.ln(5)
-
-    # Table
     pdf.set_font("Helvetica", 'B', 11)
     pdf.set_fill_color(230, 230, 230)
     for header in [f"Price ({currency})", f"Portfolio ({currency})", f"Market Cap ({currency})"]:
@@ -237,15 +224,13 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
         pdf.cell(63, 8, f"{symbol}{row['Portfolio']:,.2f}", border=1, align='C')
         pdf.cell(63, 8, f"{symbol}{row['Market Cap']:,.2f}", border=1, align='C')
         pdf.ln()
-
-    # Footer
     pdf.set_y(-10)
     pdf.set_font("Helvetica", '', 7)
     pdf.cell(0, 5, "Generated by Kaspa Portfolio Projector (KPP)", 0, 0, 'C')
     pdf.output(filename)
     messagebox.showinfo("Success", f"PDF generated at {filename}.")
 
-# Tooltip class
+# Tooltip class (unchanged)
 class Tooltip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -267,7 +252,7 @@ class Tooltip:
             self.tooltip.destroy()
             self.tooltip = None
 
-# Main Application
+# Main Application with fixed toggle functionality
 class KaspaPortfolioApp:
     def __init__(self, root):
         self.root = root
@@ -277,53 +262,32 @@ class KaspaPortfolioApp:
         self.root.configure(bg=COLOR_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # Top frame (removed top green padding, reduced height by ~1/3, matched background color)
+        # Top frame
         self.top_frame = tk.Frame(root, bg=COLOR_TOP_BG, height=100)
         self.top_frame.pack(fill="x", pady=(0, 3))
-
-        # Kaspa logo on the left (original dimensions: 300x125)
         image = Image.open(LOGO_PATH).resize((300, 125), Image.LANCZOS)
         self.logo = ImageTk.PhotoImage(image)
         tk.Label(self.top_frame, image=self.logo, bg=COLOR_TOP_BG).pack(side="left", padx=(10, 0), pady=5)
-
-        # Frame for title and subtitle on the right, moved slightly left
         self.header_text_frame = tk.Frame(self.top_frame, bg=COLOR_TOP_BG)
         self.header_text_frame.pack(side="right", padx=(20, 10), pady=3)
-
-        # Title (right-aligned, increased font size)
         self.title_label = tk.Label(self.header_text_frame, text="Kaspa Portfolio Projector", bg=COLOR_TOP_BG, fg="white", font=("Helvetica", 30, "bold"), justify="right")
         self.title_label.pack(anchor="e")
-
-        # Consolidated subtitle with version (right-aligned, slightly larger font)
         tk.Label(self.header_text_frame, text=f"Developed by the Kaspa community | Version {VERSION}", bg=COLOR_TOP_BG, fg="white", font=("Helvetica", 10), justify="right").pack(anchor="e")
-
-        # Horizontal green band below the header (solid, no gray line)
         self.header_line = tk.Frame(root, height=10, bg=COLOR_BG)
         self.header_line.pack(fill="x")
-
-        # Main frame (adjusted padding to set outer border thickness to 10 pixels)
         self.main_frame = tk.Frame(root, bg=COLOR_BG, padx=10, pady=0)
         self.main_frame.pack(fill="both", expand=True)
-
-        # Loading indicator
         self.loading_label = ttk.Label(self.main_frame, text="Loading...")
         self.loading_label.pack_forget()
-
-        # Input frame (increased border thickness to 4 pixels)
         self.input_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=0)
         self.input_frame.pack(fill="x", padx=0)
-
         self.input_subframe = tk.Frame(self.input_frame, bg=COLOR_FG, padx=10, pady=10)
         self.input_subframe.pack(side="left", fill="both", expand=True)
         self.metrics_subframe = tk.Frame(self.input_frame, bg=COLOR_FG, padx=10, pady=10)
         self.metrics_subframe.pack(side="right", fill="both", expand=True)
-
-        # Configure column weights to ensure alignment
-        self.input_subframe.grid_columnconfigure(0, weight=1)  # Left column for labels
-        self.input_subframe.grid_columnconfigure(1, weight=2)  # Middle column for entries
-        self.input_subframe.grid_columnconfigure(2, weight=1)  # Right column for check/x marks
-
-        # Input fields with title moved down 5 pixels
+        self.input_subframe.grid_columnconfigure(0, weight=1)
+        self.input_subframe.grid_columnconfigure(1, weight=2)
+        self.input_subframe.grid_columnconfigure(2, weight=1)
         tk.Label(self.input_subframe, text="Portfolio Input", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=3, pady=(5, 5), sticky="nsew")
         self.entries = {}
         self.check_marks = {}
@@ -344,19 +308,14 @@ class KaspaPortfolioApp:
             entry.bind("<KeyRelease>", lambda e: self.update_field_and_check(e.widget))
             self.entries[label] = entry
             self.updated_fields[label] = False
-
-            # Green checkmark
             check_mark = tk.Label(entry_frame, text="✔", bg=COLOR_FG, fg=CHECKMARK_COLOR, font=("Arial", 12, "bold"))
             check_mark.grid(row=0, column=1, padx=5)
             check_mark.grid_remove()
             self.check_marks[label] = check_mark
-
-            # Red "X" for invalid input
             x_mark = tk.Label(entry_frame, text="✘", bg=COLOR_FG, fg=X_MARK_COLOR, font=("Arial", 12, "bold"))
             x_mark.grid(row=0, column=1, padx=5)
             self.x_marks[label] = x_mark
 
-        # Currency selection (aligned with white fields, with green checkmark)
         currency_row = len(PLACEHOLDERS) + 1
         tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=currency_row, column=0, padx=10, pady=8, sticky="w")
         currency_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
@@ -365,19 +324,19 @@ class KaspaPortfolioApp:
         currency_menu = tk.OptionMenu(currency_frame, self.currency_var, "USD", "EUR", "GBP", "JPY", "AUD", command=self.update_display_on_currency_change)
         currency_menu.config(bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), relief="flat", bd=1, highlightbackground=COLOR_BG, highlightthickness=2, width=10)
         currency_menu.grid(row=0, column=0, padx=5)
-        # Add permanent green checkmark for currency
         currency_check_mark = tk.Label(currency_frame, text="✔", bg=COLOR_FG, fg=CHECKMARK_COLOR, font=("Arial", 12, "bold"))
         currency_check_mark.grid(row=0, column=1, padx=5)
-        currency_check_mark.grid()  # Always visible
         Tooltip(currency_menu, "Select the currency for your portfolio projections")
 
-        # Buttons with updated black text
+        # Buttons and toggle checkbox
         button_row = currency_row + 1
         self.create_styled_button("Generate PDF", self.generate_pdf, button_row, 0)
         self.create_styled_button("Fetch Real Time Data", self.fetch_data, button_row, 1)
         self.create_styled_button("Help", self.show_help, button_row + 1, 0, columnspan=2)
+        self.show_change_var = tk.BooleanVar(value=True)
+        self.show_change_checkbox = tk.Checkbutton(self.input_subframe, text="Show Change Column", variable=self.show_change_var, command=self.toggle_change_column, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
+        self.show_change_checkbox.grid(row=button_row + 2, column=0, columnspan=2, pady=5, sticky="w")
 
-        # Metrics with title moved down 5 pixels to align with Portfolio Input
         tk.Label(self.metrics_subframe, text="Portfolio Metrics", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, pady=(5, 5), sticky="nsew")
         metrics = [
             ("Holdings", "Current KAS Holdings:", "Total KAS coins currently held"),
@@ -391,39 +350,45 @@ class KaspaPortfolioApp:
             frame.grid(row=i, column=0, padx=(0, 10), pady=5, sticky="e")
             self.metrics_entries[key] = frame
 
-        # Enhanced Bitcoin market cap sentence with updated text
         tk.Label(self.metrics_subframe, text="Bitcoin Comparison", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=6, column=0, padx=(0, 10), pady=(5, 0), sticky="e")
-
-        # Frame for the multi-line Bitcoin comparison sentence
         self.btc_summary_frame = tk.Frame(self.metrics_subframe, bg=COLOR_FG)
         self.btc_summary_frame.grid(row=7, column=0, padx=(10, 10), pady=(0, 5), sticky="e")
-
-        # Labels for each part of the sentence
         self.btc_summary_line1 = tk.Label(self.btc_summary_frame, text="KAS Market cap needed for $1M portfolio:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 11), justify="left")
         self.btc_summary_line1.grid(row=0, column=0, sticky="e")
-
         self.btc_summary_line2 = tk.Label(self.btc_summary_frame, text="is about 0.000000 times the", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 11, "bold"), justify="left")
         self.btc_summary_line2.grid(row=1, column=0, sticky="e")
-
         self.btc_summary_line3 = tk.Label(self.btc_summary_frame, text="current Bitcoin market cap of $0.00.", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 11, "bold"), justify="left")
         self.btc_summary_line3.grid(row=2, column=0, sticky="e")
 
-        # Display frame (increased border thickness to 4 pixels)
         self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=15)
         self.display_frame.pack(fill="both", expand=True, pady=10, padx=0)
         tk.Label(self.display_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="n")
-        self.tree = ttk.Treeview(self.display_frame, columns=("Price", "Portfolio", "MarketCap"), show="headings", height=20)
+        self.tree = ttk.Treeview(self.display_frame, columns=("Price", "Portfolio", "MarketCap", "Change"), show="headings", height=20)
         self.tree.heading("Price", text="Price", command=lambda: self.sort_table("Price"))
         self.tree.heading("Portfolio", text="Portfolio Value", command=lambda: self.sort_table("Portfolio"))
         self.tree.heading("MarketCap", text="Market Cap", command=lambda: self.sort_table("MarketCap"))
-        self.tree.column("Price", width=150, anchor="center")
-        self.tree.column("Portfolio", width=200, anchor="center")
-        self.tree.column("MarketCap", width=250, anchor="center")
+        self.tree.heading("Change", text="Change", command=lambda: self.sort_table("Change"))
+        # Initial column widths when all columns are visible
+        self.default_widths = {
+            "Price": 150,
+            "Portfolio": 200,
+            "MarketCap": 250,
+            "Change": 150
+        }
+        # Adjusted widths when Change column is hidden
+        self.hidden_change_widths = {
+            "Price": 200,
+            "Portfolio": 250,
+            "MarketCap": 300
+        }
+        self.tree.column("Price", width=self.default_widths["Price"], anchor="center")
+        self.tree.column("Portfolio", width=self.default_widths["Portfolio"], anchor="center")
+        self.tree.column("MarketCap", width=self.default_widths["MarketCap"], anchor="center")
+        self.tree.column("Change", width=self.default_widths["Change"], anchor="center")
         self.tree.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
-
         self.display_frame.grid_rowconfigure(1, weight=1)
         self.display_frame.grid_columnconfigure(0, weight=1)
 
@@ -585,7 +550,6 @@ class KaspaPortfolioApp:
                             self.show_x_mark(label)
                             raise ValueError("KAS Holdings must be greater than 0.")
                     else:
-                        # For other numeric fields like Current Price and Circulating Supply
                         if float_value >= 0:
                             self.show_check_mark(label)
                             self.hide_x_mark(label)
@@ -611,7 +575,7 @@ class KaspaPortfolioApp:
         try:
             float_value = float(value.replace(',', ''))
             if label == "KAS Holdings:" and float_value <= 0:
-                return False  # KAS Holdings must be greater than 0
+                return False
             return float_value >= 0
         except ValueError:
             return False
@@ -622,21 +586,20 @@ class KaspaPortfolioApp:
             price_usd = float(self.entries["Current Price (USD):"].get().replace(',', ''))
             supply = float(self.entries["Circulating Supply (B):"].get().replace(',', ''))
             currency = self.currency_var.get()
-
             df, symbol = generate_portfolio_projection(kaspa, price_usd, supply, currency)
             self.tree.delete(*self.tree.get_children())
             items = []
             for i, (_, row) in enumerate(df.iterrows()):
+                multiple = row["Price_USD"] / price_usd
+                percentage_change = ((row["Price_USD"] - price_usd) / price_usd) * 100
+                change_str = f"{multiple:.1f}x ({percentage_change:+.1f}%)"
                 tag = "even" if i % 2 == 0 else "odd"
-                item = self.tree.insert("", "end", values=(f"{symbol}{row['Price']:.2f}", f"{symbol}{row['Portfolio']:,.0f}", f"{symbol}{row['Market Cap']:,.0f}"), tags=(row["Color"], tag))
+                item = self.tree.insert("", "end", values=(f"{symbol}{row['Price']:.2f}", f"{symbol}{row['Portfolio']:,.0f}", f"{symbol}{row['Market Cap']:,.0f}", change_str), tags=(row["Color"], tag))
                 items.append(item)
-            # Find the black line index based on the USD price before conversion
             black_line_index = df.index[df['Color'] == "black"].tolist()[0]
             if black_line_index > 0:
                 self.tree.see(items[black_line_index - 1])
                 self.tree.yview_moveto((black_line_index - 1) / len(items))
-
-            # Update metrics
             circulating_supply = supply * 1_000_000_000
             rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
             market_cap_usd = price_usd * circulating_supply
@@ -644,15 +607,12 @@ class KaspaPortfolioApp:
             price_needed_for_1m_usd = 1_000_000 / kaspa if kaspa > 0 else 0
             market_cap_needed_for_1m_usd = price_needed_for_1m_usd * circulating_supply
             btc_market_cap_usd = self.fetched_data.get('btc_market_cap', 0)
-
-            # Convert to selected currency
             market_cap = market_cap_usd * rate
             portfolio_value = portfolio_value_usd * rate
             price_needed_for_1m = price_needed_for_1m_usd * rate
             market_cap_needed_for_1m = market_cap_needed_for_1m_usd * rate
             btc_market_cap = btc_market_cap_usd * rate
             market_cap_ratio = market_cap_needed_for_1m_usd / btc_market_cap_usd if btc_market_cap_usd > 0 else 0
-
             for key, value in [
                 ("Holdings", f"{kaspa:,.2f} KAS"),
                 ("Portfolio Value", f"{symbol}{portfolio_value:,.2f}"),
@@ -665,8 +625,6 @@ class KaspaPortfolioApp:
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 entry.config(state='disabled')
-
-            # Update Bitcoin summary frame labels with more decimal places
             if btc_market_cap_usd > 0:
                 self.btc_summary_line1.config(text="KAS Market cap needed for $1M portfolio:")
                 self.btc_summary_line2.config(text=f"is about {market_cap_ratio:.6f} times the")
@@ -675,16 +633,40 @@ class KaspaPortfolioApp:
                 self.btc_summary_line1.config(text="Bitcoin market cap data unavailable.")
                 self.btc_summary_line2.config(text="")
                 self.btc_summary_line3.config(text="")
+            # Ensure the display columns are updated based on the checkbox state
+            self.toggle_change_column()
 
     def update_display_on_currency_change(self, *args):
         self.update_display_if_valid()
 
     def sort_table(self, column):
         items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
-        col_idx = {"Price": 0, "Portfolio": 1, "MarketCap": 2}[column]
-        items.sort(key=lambda x: float(x[0][col_idx].replace('$', '').replace('€', '').replace('£', '').replace('¥', '').replace('A$', '').replace(',', '')))
+        if column == "Change":
+            items.sort(key=lambda x: float(x[0][3].split('x')[0]))
+        else:
+            col_idx = {"Price": 0, "Portfolio": 1, "MarketCap": 2}[column]
+            items.sort(key=lambda x: float(x[0][col_idx][1:].replace(',', '')))
         for i, (_, item) in enumerate(items):
             self.tree.move(item, '', i)
+
+    def toggle_change_column(self):
+        if self.show_change_var.get():
+            # Show all columns
+            self.tree["displaycolumns"] = ("Price", "Portfolio", "MarketCap", "Change")
+            # Restore default widths
+            self.tree.column("Price", width=self.default_widths["Price"])
+            self.tree.column("Portfolio", width=self.default_widths["Portfolio"])
+            self.tree.column("MarketCap", width=self.default_widths["MarketCap"])
+            self.tree.column("Change", width=self.default_widths["Change"])
+        else:
+            # Hide the Change column
+            self.tree["displaycolumns"] = ("Price", "Portfolio", "MarketCap")
+            # Adjust widths of remaining columns
+            self.tree.column("Price", width=self.hidden_change_widths["Price"])
+            self.tree.column("Portfolio", width=self.hidden_change_widths["Portfolio"])
+            self.tree.column("MarketCap", width=self.hidden_change_widths["MarketCap"])
+            # Optionally set Change column width to 0 as a precaution
+            self.tree.column("Change", width=0)
 
     def generate_pdf(self):
         self.show_loading()
