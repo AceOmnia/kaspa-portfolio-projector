@@ -15,7 +15,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Resource path handling
+# Resource path handling for PyInstaller
 def resource_path(relative_path):
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
@@ -27,7 +27,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.4"
+VERSION = "0.3.3"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -59,7 +59,7 @@ EXCHANGE_RATES = {
     "AUD": 1.55
 }
 
-# Price intervals generation
+# Generate price intervals for projection
 def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     rounded_cent = round(current_price, 2)
     red_intervals = np.linspace(min_price, rounded_cent - 0.01, num=9).tolist()
@@ -67,7 +67,7 @@ def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=240).tolist()
     return sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
 
-# Portfolio projection calculation with Price_USD added
+# Generate portfolio projection data
 def generate_portfolio_projection(kaspa_amount, current_price, circulating_supply_billion, currency):
     circulating_supply = circulating_supply_billion * 1_000_000_000
     price_intervals_usd = generate_price_intervals(current_price)  # Generate intervals in USD
@@ -80,7 +80,7 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
     # Convert price intervals to selected currency for display
     price_intervals_display = [round(price * rate, 2) for price in price_intervals_usd]
 
-    # Prepare initial data
+    # Calculate portfolio values and market caps
     portfolio_values = [kaspa_amount * price * rate for price in price_intervals_usd]
     market_caps = [circulating_supply * price * rate for price in price_intervals_usd]
 
@@ -157,7 +157,7 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
         }
     return pd.DataFrame(data), symbol
 
-# PDF generation (unchanged)
+# Generate PDF report
 def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion, currency, btc_market_cap):
     formatted_title = title.capitalize() + " Portfolio Projection" if title else "Unnamed Portfolio Projection"
     pdf = FPDF()
@@ -230,7 +230,7 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     pdf.output(filename)
     messagebox.showinfo("Success", f"PDF generated at {filename}.")
 
-# Tooltip class (unchanged)
+# Tooltip class for hover text
 class Tooltip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -252,7 +252,7 @@ class Tooltip:
             self.tooltip.destroy()
             self.tooltip = None
 
-# Main Application with fixed toggle functionality
+# Main Application Class
 class KaspaPortfolioApp:
     def __init__(self, root):
         self.root = root
@@ -262,7 +262,7 @@ class KaspaPortfolioApp:
         self.root.configure(bg=COLOR_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # Top frame
+        # Top frame with logo and title
         self.top_frame = tk.Frame(root, bg=COLOR_TOP_BG, height=100)
         self.top_frame.pack(fill="x", pady=(0, 3))
         image = Image.open(LOGO_PATH).resize((300, 125), Image.LANCZOS)
@@ -279,6 +279,8 @@ class KaspaPortfolioApp:
         self.main_frame.pack(fill="both", expand=True)
         self.loading_label = ttk.Label(self.main_frame, text="Loading...")
         self.loading_label.pack_forget()
+
+        # Input frame
         self.input_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=0)
         self.input_frame.pack(fill="x", padx=0)
         self.input_subframe = tk.Frame(self.input_frame, bg=COLOR_FG, padx=10, pady=10)
@@ -296,6 +298,7 @@ class KaspaPortfolioApp:
         self.metrics_entries = {}
         self.fetched_data = {}
 
+        # Input fields
         for i, label in enumerate(PLACEHOLDERS, start=1):
             tk.Label(self.input_subframe, text=label, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=i, column=0, padx=10, pady=8, sticky="w")
             entry_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
@@ -316,6 +319,7 @@ class KaspaPortfolioApp:
             x_mark.grid(row=0, column=1, padx=5)
             self.x_marks[label] = x_mark
 
+        # Currency selection
         currency_row = len(PLACEHOLDERS) + 1
         tk.Label(self.input_subframe, text="Currency:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).grid(row=currency_row, column=0, padx=10, pady=8, sticky="w")
         currency_frame = tk.Frame(self.input_subframe, bg=COLOR_FG)
@@ -328,15 +332,23 @@ class KaspaPortfolioApp:
         currency_check_mark.grid(row=0, column=1, padx=5)
         Tooltip(currency_menu, "Select the currency for your portfolio projections")
 
-        # Buttons and toggle checkbox
+        # Buttons
         button_row = currency_row + 1
         self.create_styled_button("Generate PDF", self.generate_pdf, button_row, 0)
         self.create_styled_button("Fetch Real Time Data", self.fetch_data, button_row, 1)
         self.create_styled_button("Help", self.show_help, button_row + 1, 0, columnspan=2)
-        self.show_change_var = tk.BooleanVar(value=True)
-        self.show_change_checkbox = tk.Checkbutton(self.input_subframe, text="Show Change Column", variable=self.show_change_var, command=self.toggle_change_column, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
-        self.show_change_checkbox.grid(row=button_row + 2, column=0, columnspan=2, pady=5, sticky="w")
 
+        # Checkboxes for column visibility
+        checkbox_row = button_row + 2
+        self.show_change_var = tk.BooleanVar(value=False)
+        self.show_change_checkbox = tk.Checkbutton(self.input_subframe, text="Show Change Column", variable=self.show_change_var, command=self.update_display_if_valid, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
+        self.show_change_checkbox.grid(row=checkbox_row, column=0, padx=10, pady=5, sticky="w")
+
+        self.show_market_cap_vs_btc_var = tk.BooleanVar(value=False)
+        self.show_market_cap_vs_btc_checkbox = tk.Checkbutton(self.input_subframe, text="Show Market Cap vs. Bitcoin", variable=self.show_market_cap_vs_btc_var, command=self.update_display_if_valid, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
+        self.show_market_cap_vs_btc_checkbox.grid(row=checkbox_row, column=1, padx=10, pady=5, sticky="w")
+
+        # Metrics subframe
         tk.Label(self.metrics_subframe, text="Portfolio Metrics", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, pady=(5, 5), sticky="nsew")
         metrics = [
             ("Holdings", "Current KAS Holdings:", "Total KAS coins currently held"),
@@ -360,31 +372,25 @@ class KaspaPortfolioApp:
         self.btc_summary_line3 = tk.Label(self.btc_summary_frame, text="current Bitcoin market cap of $0.00.", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 11, "bold"), justify="left")
         self.btc_summary_line3.grid(row=2, column=0, sticky="e")
 
+        # Display frame with projection table
         self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=15)
         self.display_frame.pack(fill="both", expand=True, pady=10, padx=0)
         tk.Label(self.display_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="n")
-        self.tree = ttk.Treeview(self.display_frame, columns=("Price", "Portfolio", "MarketCap", "Change"), show="headings", height=20)
+        self.tree = ttk.Treeview(self.display_frame, columns=("Price", "Portfolio", "MarketCap", "Change", "Market Cap vs. BTC"), show="headings", height=20)
         self.tree.heading("Price", text="Price", command=lambda: self.sort_table("Price"))
         self.tree.heading("Portfolio", text="Portfolio Value", command=lambda: self.sort_table("Portfolio"))
         self.tree.heading("MarketCap", text="Market Cap", command=lambda: self.sort_table("MarketCap"))
         self.tree.heading("Change", text="Change", command=lambda: self.sort_table("Change"))
-        # Initial column widths when all columns are visible
+        self.tree.heading("Market Cap vs. BTC", text="Market Cap vs. BTC", command=lambda: self.sort_table("Market Cap vs. BTC"))
         self.default_widths = {
             "Price": 150,
             "Portfolio": 200,
             "MarketCap": 250,
-            "Change": 150
+            "Change": 150,
+            "Market Cap vs. BTC": 150
         }
-        # Adjusted widths when Change column is hidden
-        self.hidden_change_widths = {
-            "Price": 200,
-            "Portfolio": 250,
-            "MarketCap": 300
-        }
-        self.tree.column("Price", width=self.default_widths["Price"], anchor="center")
-        self.tree.column("Portfolio", width=self.default_widths["Portfolio"], anchor="center")
-        self.tree.column("MarketCap", width=self.default_widths["MarketCap"], anchor="center")
-        self.tree.column("Change", width=self.default_widths["Change"], anchor="center")
+        for col, width in self.default_widths.items():
+            self.tree.column(col, width=width, anchor="center")
         self.tree.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
@@ -392,6 +398,7 @@ class KaspaPortfolioApp:
         self.display_frame.grid_rowconfigure(1, weight=1)
         self.display_frame.grid_columnconfigure(0, weight=1)
 
+        # Treeview styling
         style = ttk.Style()
         style.configure("Treeview", background="white", foreground=COLOR_FG, font=("Arial", 12))
         style.map("Treeview", background=[("selected", COLOR_BG)], foreground=[("selected", COLOR_FG)])
@@ -587,32 +594,53 @@ class KaspaPortfolioApp:
             supply = float(self.entries["Circulating Supply (B):"].get().replace(',', ''))
             currency = self.currency_var.get()
             df, symbol = generate_portfolio_projection(kaspa, price_usd, supply, currency)
+            rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
+            btc_market_cap = self.fetched_data.get('btc_market_cap', 0)
+
             self.tree.delete(*self.tree.get_children())
             items = []
             for i, (_, row) in enumerate(df.iterrows()):
-                multiple = row["Price_USD"] / price_usd
-                percentage_change = ((row["Price_USD"] - price_usd) / price_usd) * 100
+                projected_price_usd = row["Price_USD"]
+                projected_portfolio_value = row["Portfolio"]
+                projected_market_cap = row["Market Cap"]
+                multiple = projected_price_usd / price_usd if price_usd != 0 else 0
+                percentage_change = (multiple - 1) * 100
                 change_str = f"{multiple:.1f}x ({percentage_change:+.1f}%)"
                 tag = "even" if i % 2 == 0 else "odd"
-                item = self.tree.insert("", "end", values=(f"{symbol}{row['Price']:.2f}", f"{symbol}{row['Portfolio']:,.0f}", f"{symbol}{row['Market Cap']:,.0f}", change_str), tags=(row["Color"], tag))
+                values = [f"{symbol}{row['Price']:.2f}", f"{symbol}{projected_portfolio_value:,.0f}", f"{symbol}{projected_market_cap:,.0f}"]
+
+                if self.show_change_var.get():
+                    values.append(change_str)
+                if self.show_market_cap_vs_btc_var.get():
+                    if btc_market_cap > 0:
+                        market_cap_vs_btc = (projected_market_cap / rate) / btc_market_cap  # Convert back to USD
+                        values.append(f"{market_cap_vs_btc:.6f}")
+                    else:
+                        values.append("N/A")
+
+                item = self.tree.insert("", "end", values=values, tags=(row["Color"], tag))
                 items.append(item)
+
             black_line_index = df.index[df['Color'] == "black"].tolist()[0]
             if black_line_index > 0:
                 self.tree.see(items[black_line_index - 1])
                 self.tree.yview_moveto((black_line_index - 1) / len(items))
+
+            self.update_display_columns()
+
+            # Update metrics
             circulating_supply = supply * 1_000_000_000
-            rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
             market_cap_usd = price_usd * circulating_supply
             portfolio_value_usd = kaspa * price_usd
             price_needed_for_1m_usd = 1_000_000 / kaspa if kaspa > 0 else 0
             market_cap_needed_for_1m_usd = price_needed_for_1m_usd * circulating_supply
-            btc_market_cap_usd = self.fetched_data.get('btc_market_cap', 0)
             market_cap = market_cap_usd * rate
             portfolio_value = portfolio_value_usd * rate
             price_needed_for_1m = price_needed_for_1m_usd * rate
             market_cap_needed_for_1m = market_cap_needed_for_1m_usd * rate
-            btc_market_cap = btc_market_cap_usd * rate
-            market_cap_ratio = market_cap_needed_for_1m_usd / btc_market_cap_usd if btc_market_cap_usd > 0 else 0
+            btc_market_cap_currency = btc_market_cap * rate
+            market_cap_ratio = market_cap_needed_for_1m_usd / btc_market_cap if btc_market_cap > 0 else 0
+
             for key, value in [
                 ("Holdings", f"{kaspa:,.2f} KAS"),
                 ("Portfolio Value", f"{symbol}{portfolio_value:,.2f}"),
@@ -625,48 +653,47 @@ class KaspaPortfolioApp:
                 entry.delete(0, tk.END)
                 entry.insert(0, value)
                 entry.config(state='disabled')
-            if btc_market_cap_usd > 0:
+
+            if btc_market_cap > 0:
                 self.btc_summary_line1.config(text="KAS Market cap needed for $1M portfolio:")
                 self.btc_summary_line2.config(text=f"is about {market_cap_ratio:.6f} times the")
-                self.btc_summary_line3.config(text=f"current Bitcoin market cap of {symbol}{btc_market_cap:,.2f}.")
+                self.btc_summary_line3.config(text=f"current Bitcoin market cap of {symbol}{btc_market_cap_currency:,.2f}.")
             else:
                 self.btc_summary_line1.config(text="Bitcoin market cap data unavailable.")
                 self.btc_summary_line2.config(text="")
                 self.btc_summary_line3.config(text="")
-            # Ensure the display columns are updated based on the checkbox state
-            self.toggle_change_column()
 
-    def update_display_on_currency_change(self, *args):
-        self.update_display_if_valid()
+    def update_display_columns(self):
+        display_columns = ["Price", "Portfolio", "MarketCap"]
+        if self.show_change_var.get():
+            display_columns.append("Change")
+        if self.show_market_cap_vs_btc_var.get():
+            display_columns.append("Market Cap vs. BTC")
+
+        self.tree["displaycolumns"] = display_columns
+        num_columns = len(display_columns)
+        if num_columns > 0:
+            for col in display_columns:
+                self.tree.column(col, width=750 // num_columns)
 
     def sort_table(self, column):
         items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
-        if column == "Change":
-            items.sort(key=lambda x: float(x[0][3].split('x')[0]))
-        else:
-            col_idx = {"Price": 0, "Portfolio": 1, "MarketCap": 2}[column]
-            items.sort(key=lambda x: float(x[0][col_idx][1:].replace(',', '')))
+        col_idx = self.tree["displaycolumns"].index(column)
+        items.sort(key=lambda x: self.parse_value(x[0][col_idx], column))
         for i, (_, item) in enumerate(items):
             self.tree.move(item, '', i)
 
-    def toggle_change_column(self):
-        if self.show_change_var.get():
-            # Show all columns
-            self.tree["displaycolumns"] = ("Price", "Portfolio", "MarketCap", "Change")
-            # Restore default widths
-            self.tree.column("Price", width=self.default_widths["Price"])
-            self.tree.column("Portfolio", width=self.default_widths["Portfolio"])
-            self.tree.column("MarketCap", width=self.default_widths["MarketCap"])
-            self.tree.column("Change", width=self.default_widths["Change"])
+    def parse_value(self, value, column):
+        if column in ["Price", "Portfolio", "MarketCap"]:
+            return float(value.replace('$', '').replace('€', '').replace('£', '').replace('¥', '').replace('A$', '').replace(',', ''))
+        elif column == "Market Cap vs. BTC":
+            if value == "N/A":
+                return float('inf')  # Handle N/A for sorting
+            return float(value)
+        elif column == "Change":
+            return float(value.split('x')[0])
         else:
-            # Hide the Change column
-            self.tree["displaycolumns"] = ("Price", "Portfolio", "MarketCap")
-            # Adjust widths of remaining columns
-            self.tree.column("Price", width=self.hidden_change_widths["Price"])
-            self.tree.column("Portfolio", width=self.hidden_change_widths["Portfolio"])
-            self.tree.column("MarketCap", width=self.hidden_change_widths["MarketCap"])
-            # Optionally set Change column width to 0 as a precaution
-            self.tree.column("Change", width=0)
+            return value
 
     def generate_pdf(self):
         self.show_loading()
@@ -702,6 +729,9 @@ class KaspaPortfolioApp:
 
     def show_help(self):
         messagebox.showinfo("Help", "Enter your Kaspa portfolio details and fetch real-time data. Select a currency and generate a PDF report.\n\nSupport: github.com/AceOmnia/kaspa-portfolio-projector/")
+
+    def update_display_on_currency_change(self, event=None):
+        self.update_display_if_valid()
 
     def on_closing(self):
         self.root.destroy()
