@@ -27,7 +27,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -391,6 +391,10 @@ class KaspaPortfolioApp:
         }
         for col, width in self.default_widths.items():
             self.tree.column(col, width=width, anchor="center")
+
+        # Set the initial displayed columns to exclude "Change" and "Market Cap vs. BTC"
+        self.tree["displaycolumns"] = ["Price", "Portfolio", "MarketCap"]
+
         self.tree.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
@@ -408,6 +412,9 @@ class KaspaPortfolioApp:
         self.tree.tag_configure("even", background="#F0F0F0")
         self.tree.tag_configure("odd", background="white")
         style.configure("Treeview.Heading", background=COLOR_BG, foreground=COLOR_FG, font=("Arial", 14, "bold"))
+
+        # Explicitly call update_display_columns to set the initial state
+        self.update_display_columns()
 
         self.fetch_data_on_startup()
 
@@ -609,14 +616,21 @@ class KaspaPortfolioApp:
                 tag = "even" if i % 2 == 0 else "odd"
                 values = [f"{symbol}{row['Price']:.2f}", f"{symbol}{projected_portfolio_value:,.0f}", f"{symbol}{projected_market_cap:,.0f}"]
 
+                # Ensure the values list has an element for the "Change" column
                 if self.show_change_var.get():
                     values.append(change_str)
+                else:
+                    values.append("")
+
+                # Ensure the values list has an element for the "Market Cap vs. BTC" column
                 if self.show_market_cap_vs_btc_var.get():
                     if btc_market_cap > 0:
-                        market_cap_vs_btc = (projected_market_cap / rate) / btc_market_cap  # Convert back to USD
+                        market_cap_vs_btc = (projected_market_cap / rate) / btc_market_cap
                         values.append(f"{market_cap_vs_btc:.6f}")
                     else:
                         values.append("N/A")
+                else:
+                    values.append("")
 
                 item = self.tree.insert("", "end", values=values, tags=(row["Color"], tag))
                 items.append(item)
@@ -628,7 +642,7 @@ class KaspaPortfolioApp:
 
             self.update_display_columns()
 
-            # Update metrics
+            # Update portfolio metrics
             circulating_supply = supply * 1_000_000_000
             market_cap_usd = price_usd * circulating_supply
             portfolio_value_usd = kaspa * price_usd
