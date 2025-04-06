@@ -267,7 +267,7 @@ class KaspaPortfolioApp:
         self.root = root
         self.root.title(f"Kaspa Portfolio Projection (KPP) - Version {VERSION}")
         # Adjust window size to accommodate the new layout
-        self.root.geometry("1300x1000")
+        self.root.geometry("1700x1000")
         self.root.iconbitmap(ICON_PATH)
         self.root.configure(bg=COLOR_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -298,7 +298,7 @@ class KaspaPortfolioApp:
 
         # Right frame for KAS Price Slider
         self.right_frame = tk.Frame(self.content_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=10, width=300)
-        self.right_frame.pack(side="right", fill="y", padx=(5, 0))
+        self.right_frame.pack(side="right", fill="y", padx=(5, 10), pady=(0, 10))  # Added padding on right and bottom
         self.right_frame.pack_propagate(False)  # Prevent frame from resizing to fit contents
 
         # Define loading_label in left_frame
@@ -451,21 +451,21 @@ class KaspaPortfolioApp:
         self.values_frame.pack(fill="x", pady=10)
 
         # Portfolio Value label and value
-        tk.Label(self.values_frame, text="Portfolio Value:", bg=COLOR_FG, fg=CHECKMARK_COLOR,
-                 font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
+        tk.Label(self.values_frame, text="Portfolio Value:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).pack(
+            anchor="w", padx=10)
         self.portfolio_value_frame = tk.Frame(self.values_frame, bg=COLOR_FG)
         self.portfolio_value_frame.pack(fill="x", pady=(0, 8))
-        self.portfolio_value_label = tk.Label(self.portfolio_value_frame, text="$0.00", bg="white", fg=COLOR_BG,
+        self.portfolio_value_label = tk.Label(self.portfolio_value_frame, text="$0.00", bg="white", fg=COLOR_FG,
                                               font=("Arial", 12), width=30, anchor="w", relief="flat", bd=1,
                                               highlightbackground=COLOR_BG, highlightthickness=2)
         self.portfolio_value_label.pack(padx=10)
 
         # KAS Market Cap label and value
-        tk.Label(self.values_frame, text="KAS Market Cap:", bg=COLOR_FG, fg=CHECKMARK_COLOR,
-                 font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
+        tk.Label(self.values_frame, text="KAS Market Cap:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).pack(
+            anchor="w", padx=10)
         self.market_cap_frame = tk.Frame(self.values_frame, bg=COLOR_FG)
         self.market_cap_frame.pack(fill="x", pady=0)
-        self.market_cap_label = tk.Label(self.market_cap_frame, text="$0.00", bg="white", fg=COLOR_BG,
+        self.market_cap_label = tk.Label(self.market_cap_frame, text="$0.00", bg="white", fg=COLOR_FG,
                                          font=("Arial", 12), width=30, anchor="w", relief="flat", bd=1,
                                          highlightbackground=COLOR_BG, highlightthickness=2)
         self.market_cap_label.pack(padx=10)
