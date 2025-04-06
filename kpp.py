@@ -29,7 +29,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -267,7 +267,7 @@ class KaspaPortfolioApp:
         self.root = root
         self.root.title(f"Kaspa Portfolio Projection (KPP) - Version {VERSION}")
         # Adjust window size to accommodate the new layout
-        self.root.geometry("1700x1000")
+        self.root.geometry("1700x970")
         self.root.iconbitmap(ICON_PATH)
         self.root.configure(bg=COLOR_BG)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -298,7 +298,7 @@ class KaspaPortfolioApp:
 
         # Right frame for KAS Price Slider
         self.right_frame = tk.Frame(self.content_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=10, width=300)
-        self.right_frame.pack(side="right", fill="y", padx=(5, 10), pady=(0, 10))  # Added padding on right and bottom
+        self.right_frame.pack(side="right", fill="y", padx=(5, 10), pady=(0, 10))
         self.right_frame.pack_propagate(False)  # Prevent frame from resizing to fit contents
 
         # Define loading_label in left_frame
@@ -439,10 +439,10 @@ class KaspaPortfolioApp:
         self.slider_price_entry.pack_forget()  # Hide by default
         self.slider_price_entry.bind("<Return>", self.update_slider_from_entry)
 
-        # Slider (vertical), spanning about 2/3 of the window height
+        # Slider (vertical), slightly shorter
         self.slider_var = tk.DoubleVar(value=0)  # Default to minimum position
         self.slider = tk.Scale(self.right_frame, from_=100, to=0, orient=tk.VERTICAL, variable=self.slider_var,
-                               length=600, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), showvalue=0,
+                               length=550, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), showvalue=0,
                                command=self.update_slider_values)
         self.slider.pack(fill="y", expand=False, pady=10)
 
