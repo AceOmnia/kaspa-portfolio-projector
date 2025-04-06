@@ -27,7 +27,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -480,6 +480,14 @@ class KaspaPortfolioApp:
         # Frame for checkboxes
         self.checkbox_frame = tk.Frame(self.table_frame, bg=COLOR_FG)
         self.checkbox_frame.grid(row=1, column=0, columnspan=2, sticky="e", pady=(0, 5))
+        # New "Link to Slider" checkbox
+        self.link_to_slider_var = tk.BooleanVar(value=False)
+        self.link_to_slider_checkbox = tk.Checkbutton(self.checkbox_frame, text="Link to Slider",
+                                                      variable=self.link_to_slider_var,
+                                                      command=self.update_display_if_valid,  # Optional: refresh if needed
+                                                      bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
+        self.link_to_slider_checkbox.pack(side="right", padx=10)
+        # Existing checkboxes
         self.show_change_var = tk.BooleanVar(value=False)
         self.show_change_checkbox = tk.Checkbutton(self.checkbox_frame, text="Show Change Column",
                                                    variable=self.show_change_var, command=self.update_display_if_valid,
@@ -788,6 +796,7 @@ class KaspaPortfolioApp:
                 item = self.tree.insert("", "end", values=values, tags=(row["Color"], tag))
                 items.append(item)
 
+            # Default behavior: scroll to the black row with one red row above it
             black_line_index = df.index[df['Color'] == "black"].tolist()[0]
             if black_line_index > 0:
                 self.tree.see(items[black_line_index - 1])
@@ -918,6 +927,32 @@ class KaspaPortfolioApp:
         self.slider_price_label.config(text=f"{symbol}{kas_price:.2f}")
         self.portfolio_value_label.config(text=f"{symbol}{portfolio_value:,.2f}")
         self.market_cap_label.config(text=f"{symbol}{market_cap:,.2f}")
+
+        # New functionality: If "Link to Slider" is checked, scroll the chart to the row with the closest KAS price
+        if self.link_to_slider_var.get():
+            # Get all items in the Treeview
+            items = self.tree.get_children()
+            if not items:
+                return  # No items in the chart to scroll to
+
+            # Find the row with the KAS price closest to the slider's value
+            closest_index = 0
+            min_diff = float('inf')
+            for i, item in enumerate(items):
+                # The price is in the first column (index 0)
+                price_str = self.tree.item(item, "values")[0]
+                # Remove the currency symbol and convert to float
+                price = float(price_str.replace(symbol, '').replace(',', ''))
+                diff = abs(price - kas_price)
+                if diff < min_diff:
+                    min_diff = diff
+                    closest_index = i
+
+            # Scroll the chart so the closest row is the second visible row
+            # To make the closest row the second row, we want the row above it to be the first visible row
+            target_index = max(0, closest_index - 1)  # Ensure we don't go below index 0
+            self.tree.see(items[target_index])
+            self.tree.yview_moveto(target_index / len(items))
 
     def update_display_columns(self):
         # Define the columns to display
