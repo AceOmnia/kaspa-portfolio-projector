@@ -10,7 +10,8 @@ A Python application for generating Kaspa portfolio projections and reports. Thi
 - Provides an interactive graphical interface with input validation and tooltips.
 - Displays portfolio projections in a sortable table with color-coded price levels.
 - Exports a professional-grade PDF report including a price table and key portfolio metrics.
-- Supports multiple currencies (USD, EUR, GBP, etc) for price and portfolio value conversions.
+- Supports multiple currencies (USD, EUR, BTC) for price and portfolio value conversions.
+- Features a slider that can link to the chart for ease of portfolio projections.
 
 ## Installation
 
@@ -66,6 +67,9 @@ This script requires the following Python libraries:
 
 ### Main Application GUI - Filled In
 ![Main GUI - Filled In](screenshots/KPP-App-Screenshot-Filled_In.png)
+
+### Main Application GUI - Filled In with Linked Slider in use and additional columns added to chart.
+![Main GUI - Slider & More Columns](screenshots/KPP-App-Screenshot-Filled_In-Slider.png)
 
 ### Sample PDF Report
 ![Sample PDF - view in /docs](docs/KPP-App-Example-PDF.pdf)
