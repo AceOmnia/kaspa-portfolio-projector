@@ -192,7 +192,7 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     market_cap_ratio = market_cap_needed_for_1m / btc_market_cap if btc_market_cap > 0 else 0
     summary = (
         f"The {formatted_title[:-21]} Kaspa portfolio, holding {kaspa_amount:,.2f} KAS with a current portfolio "
-        f"value of {symbol}{portfolio_value:,.2f} and a market cap of {symbol}{market_cap:,.2f}, "
+        f"value of {symbol}{portfolio_value:,.2f} and a KAS market cap of {symbol}{market_cap:,.2f}, "
         f"would require a KAS price of {symbol}{price_needed_for_1m:,.2f} and a market cap of "
         f"{symbol}{market_cap_needed_for_1m:,.2f} - approximately {market_cap_ratio:.2f} times the "
         f"current Bitcoin market cap of {symbol}{btc_market_cap_in_currency:,.2f} - to reach a $1M valuation."
