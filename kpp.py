@@ -15,7 +15,6 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-
 # Resource path handling for PyInstaller
 def resource_path(relative_path):
     if getattr(sys, 'frozen', False):
@@ -23,7 +22,6 @@ def resource_path(relative_path):
     else:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
-
 
 # Constants
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
@@ -61,7 +59,6 @@ EXCHANGE_RATES = {
     "AUD": 1.55
 }
 
-
 # Generate price intervals for projection
 def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     rounded_cent = round(current_price, 2)
@@ -69,7 +66,6 @@ def generate_price_intervals(current_price, min_price=0.01, max_price=1000):
     black_interval = [rounded_cent]
     green_intervals = np.geomspace(rounded_cent + 0.01, max_price, num=240).tolist()
     return sorted(set(round(price, 2) for price in (red_intervals + black_interval + green_intervals)))
-
 
 # Generate portfolio projection data
 def generate_portfolio_projection(kaspa_amount, current_price, circulating_supply_billion, currency):
@@ -162,7 +158,6 @@ def generate_portfolio_projection(kaspa_amount, current_price, circulating_suppl
         }
     return pd.DataFrame(data), symbol
 
-
 # Generate PDF report
 def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, circulating_supply_billion, currency,
                            btc_market_cap):
@@ -237,7 +232,6 @@ def generate_portfolio_pdf(df, filename, title, kaspa_amount, current_price, cir
     pdf.output(filename)
     messagebox.showinfo("Success", f"PDF generated at {filename}.")
 
-
 # Tooltip class for hover text
 class Tooltip:
     def __init__(self, widget, text):
@@ -259,7 +253,6 @@ class Tooltip:
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
-
 
 # Main Application Class
 class KaspaPortfolioApp:
@@ -292,14 +285,14 @@ class KaspaPortfolioApp:
         self.content_frame = tk.Frame(root, bg=COLOR_BG)
         self.content_frame.pack(fill="both", expand=True)
 
-        # Left frame for Portfolio Input, Metrics, and Projection
-        self.left_frame = tk.Frame(self.content_frame, bg=COLOR_BG)
-        self.left_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
-
-        # Right frame for KAS Price Slider
+        # Right frame for KAS Price Slider (pack this first to ensure it maintains its width)
         self.right_frame = tk.Frame(self.content_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=10, width=300)
         self.right_frame.pack(side="right", fill="y", padx=(5, 10), pady=(0, 10))
         self.right_frame.pack_propagate(False)  # Prevent frame from resizing to fit contents
+
+        # Left frame for Portfolio Input, Metrics, and Projection
+        self.left_frame = tk.Frame(self.content_frame, bg=COLOR_BG)
+        self.left_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
         # Define loading_label in left_frame
         self.loading_label = ttk.Label(self.left_frame, text="Loading...")
@@ -418,9 +411,9 @@ class KaspaPortfolioApp:
         self.slider_top_frame = tk.Frame(self.right_frame, bg=COLOR_FG)
         self.slider_top_frame.pack(fill="x", pady=2)
 
-        # KAS price label, bold, with fixed width
+        # KAS price label, bold, with fixed width and wraplength
         self.slider_price_label = tk.Label(self.slider_top_frame, text="$0.01", bg=COLOR_FG, fg=COLOR_BG,
-                                           font=("Arial", 12, "bold"), width=8, anchor="w")
+                                           font=("Arial", 12, "bold"), width=8, anchor="w", wraplength=150)
         self.slider_price_label.pack(side="left", padx=10)
 
         # Dropdown menu to toggle custom price entry, aligned to the right
@@ -450,34 +443,42 @@ class KaspaPortfolioApp:
         self.values_frame = tk.Frame(self.right_frame, bg=COLOR_FG)
         self.values_frame.pack(fill="x", pady=10)
 
-        # Portfolio Value label and value
+        # Portfolio Value label and value with wraplength
         tk.Label(self.values_frame, text="Portfolio Value:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).pack(
             anchor="w", padx=10)
         self.portfolio_value_frame = tk.Frame(self.values_frame, bg=COLOR_FG)
         self.portfolio_value_frame.pack(fill="x", pady=(0, 8))
         self.portfolio_value_label = tk.Label(self.portfolio_value_frame, text="$0.00", bg="white", fg=COLOR_FG,
                                               font=("Arial", 12), width=30, anchor="w", relief="flat", bd=1,
-                                              highlightbackground=COLOR_BG, highlightthickness=2)
+                                              highlightbackground=COLOR_BG, highlightthickness=2, wraplength=250)
         self.portfolio_value_label.pack(padx=10)
 
-        # KAS Market Cap label and value
+        # KAS Market Cap label and value with wraplength
         tk.Label(self.values_frame, text="KAS Market Cap:", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12, "bold")).pack(
             anchor="w", padx=10)
         self.market_cap_frame = tk.Frame(self.values_frame, bg=COLOR_FG)
         self.market_cap_frame.pack(fill="x", pady=0)
         self.market_cap_label = tk.Label(self.market_cap_frame, text="$0.00", bg="white", fg=COLOR_FG,
                                          font=("Arial", 12), width=30, anchor="w", relief="flat", bd=1,
-                                         highlightbackground=COLOR_BG, highlightthickness=2)
+                                         highlightbackground=COLOR_BG, highlightthickness=2, wraplength=250)
         self.market_cap_label.pack(padx=10)
 
         # Display frame with projection table (now in left_frame)
-        self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=15)
+        # Set a fixed width for the display_frame to prevent it from expanding
+        self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=15, width=750)
         self.display_frame.pack(fill="both", expand=True, pady=10, padx=0)
-        tk.Label(self.display_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG,
+        self.display_frame.pack_propagate(False)  # Prevent the frame from resizing to fit its contents
+
+        # Inner frame to hold the Treeview and scrollbar with a fixed width
+        self.table_frame = tk.Frame(self.display_frame, bg=COLOR_FG, width=750)
+        self.table_frame.pack(fill="both", expand=True)
+        self.table_frame.pack_propagate(False)  # Prevent the frame from resizing
+
+        tk.Label(self.table_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG,
                  font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 5), sticky="n")
 
         # Frame for checkboxes
-        self.checkbox_frame = tk.Frame(self.display_frame, bg=COLOR_FG)
+        self.checkbox_frame = tk.Frame(self.table_frame, bg=COLOR_FG)
         self.checkbox_frame.grid(row=1, column=0, columnspan=2, sticky="e", pady=(0, 5))
         self.show_change_var = tk.BooleanVar(value=False)
         self.show_change_checkbox = tk.Checkbutton(self.checkbox_frame, text="Show Change Column",
@@ -491,7 +492,7 @@ class KaspaPortfolioApp:
                                                               fg=COLOR_BG, font=("Arial", 12))
         self.show_market_cap_vs_btc_checkbox.pack(side="right", padx=10)
 
-        self.tree = ttk.Treeview(self.display_frame,
+        self.tree = ttk.Treeview(self.table_frame,
                                  columns=("Price", "Portfolio", "MarketCap", "Change", "Market Cap vs. BTC"),
                                  show="headings", height=20)
         self.tree.heading("Price", text="Price", command=lambda: self.sort_table("Price"))
@@ -514,11 +515,11 @@ class KaspaPortfolioApp:
         self.tree["displaycolumns"] = ["Price", "Portfolio", "MarketCap"]
 
         self.tree.grid(row=2, column=0, sticky="nsew")
-        scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.tree.yview)
         scrollbar.grid(row=2, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
-        self.display_frame.grid_rowconfigure(2, weight=1)
-        self.display_frame.grid_columnconfigure(0, weight=1)
+        self.table_frame.grid_rowconfigure(2, weight=1)
+        self.table_frame.grid_columnconfigure(0, weight=1)
 
         # Treeview styling
         style = ttk.Style()
@@ -919,17 +920,34 @@ class KaspaPortfolioApp:
         self.market_cap_label.config(text=f"{symbol}{market_cap:,.2f}")
 
     def update_display_columns(self):
+        # Define the columns to display
         display_columns = ["Price", "Portfolio", "MarketCap"]
         if self.show_change_var.get():
             display_columns.append("Change")
         if self.show_market_cap_vs_btc_var.get():
             display_columns.append("Market Cap vs. BTC")
 
+        # Set the displayed columns
         self.tree["displaycolumns"] = display_columns
+
+        # Define a fixed total width for the table (in pixels)
+        total_table_width = 710  # Adjusted to account for scrollbar width (approximately 40 pixels)
+
+        # Calculate the width per column
         num_columns = len(display_columns)
         if num_columns > 0:
+            # Distribute the total width evenly across the columns
+            column_width = total_table_width // num_columns
             for col in display_columns:
-                self.tree.column(col, width=750 // num_columns)
+                self.tree.column(col, width=column_width, anchor="center")
+
+            # Adjust the last column to account for any rounding errors
+            # This ensures the total width of the columns exactly matches total_table_width
+            if display_columns:
+                last_col = display_columns[-1]
+                used_width = column_width * (num_columns - 1)
+                last_col_width = total_table_width - used_width
+                self.tree.column(last_col, width=last_col_width, anchor="center")
 
     def sort_table(self, column):
         items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
@@ -999,7 +1017,6 @@ class KaspaPortfolioApp:
     def on_closing(self):
         self.root.destroy()
         sys.exit(0)
-
 
 if __name__ == "__main__":
     root = tk.Tk()
