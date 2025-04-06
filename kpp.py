@@ -1,3 +1,46 @@
+"""
+Kaspa Portfolio Projector (KPP)
+
+This script provides a graphical user interface (GUI) application for projecting the value of a Kaspa (KAS) cryptocurrency portfolio based on various price scenarios. It allows users to input their KAS holdings, fetch real-time price and circulating supply data, and visualize potential portfolio values and market caps at different KAS prices. The application also supports generating PDF reports of the projections.
+
+Key Features:
+- **Portfolio Input**: Users can input their portfolio name, KAS holdings, current KAS price (in USD), and circulating supply (in billions).
+- **Real-Time Data Fetching**: Fetches current KAS price and circulating supply from the CoinGecko API.
+- **Currency Conversion**: Supports displaying values in multiple currencies (USD, EUR, GBP, JPY, AUD) with real-time exchange rates.
+- **Portfolio Projection Table**: Displays a table of projected portfolio values and market caps at various KAS prices, with color-coded rows (red for prices below current, black for current, green for above).
+- **Dynamic Slider**: A vertical slider allows users to select a KAS price and see the corresponding portfolio value and market cap, with an option to link the slider to the projection table's scroll position.
+- **PDF Generation**: Users can generate a PDF report summarizing their portfolio facts and projections.
+- **Bitcoin Comparison**: Compares the KAS market cap needed for a $1M portfolio to Bitcoin's current market cap.
+
+Classes:
+- **Tooltip**: A utility class for displaying hover tooltips on widgets.
+- **KaspaPortfolioApp**: The main application class that builds and manages the GUI, handles user inputs, and performs calculations.
+
+Functions:
+- **resource_path**: Resolves file paths for resources when the script is bundled with PyInstaller.
+- **generate_price_intervals**: Generates a list of KAS price intervals for the projection table, using a combination of linear and geometric spacing.
+- **generate_portfolio_projection**: Creates a DataFrame with projected portfolio values and market caps for given KAS prices.
+- **generate_portfolio_pdf**: Generates a PDF report of the portfolio projections.
+- **fetch_api_data**: Fetches real-time KAS price, circulating supply, and Bitcoin market cap from the CoinGecko API.
+
+Usage:
+    Run the script directly to launch the GUI application:
+    python kpp.py
+
+Dependencies:
+    - pandas: For data manipulation and DataFrame creation.
+    - fpdf: For generating PDF reports.
+    - numpy: For numerical computations and price interval generation.
+    - tkinter: For building the GUI.
+    - PIL (Pillow): For handling image resources (logos).
+    - pycoingecko: For fetching cryptocurrency data from the CoinGecko API.
+    - logging: For logging application events and errors.
+
+Author: Developed by the Kaspa community
+Version: 0.4.1
+License: free use
+"""
+
 import pandas as pd
 from fpdf import FPDF
 import numpy as np
