@@ -29,7 +29,7 @@ def resource_path(relative_path):
 LOGO_PATH = resource_path(r"pics\Kaspa-LDSP-Dark-Reverse.png")
 LOGO_PATH_LIGHT = resource_path(r"pics\Kaspa-LDSP-Dark-Full-Color.png")
 ICON_PATH = resource_path(r"pics\kaspa.ico")
-VERSION = "0.3.3"
+VERSION = "0.4.0"  # Changed from 0.3.3 to 0.4.0
 COLOR_BG = "#70C7BA"  # Teal (used for borders)
 COLOR_FG = "#231F20"  # Dark gray
 COLOR_TOP_BG = "#231F20"  # Matches lower dark area
@@ -364,21 +364,6 @@ class KaspaPortfolioApp:
         self.create_styled_button("Fetch Real Time Data", self.fetch_data, button_row, 1)
         self.create_styled_button("Help", self.show_help, button_row + 1, 0, columnspan=2)
 
-        # Checkboxes for column visibility
-        checkbox_row = button_row + 2
-        self.show_change_var = tk.BooleanVar(value=False)
-        self.show_change_checkbox = tk.Checkbutton(self.input_subframe, text="Show Change Column",
-                                                   variable=self.show_change_var, command=self.update_display_if_valid,
-                                                   bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
-        self.show_change_checkbox.grid(row=checkbox_row, column=0, padx=10, pady=5, sticky="w")
-
-        self.show_market_cap_vs_btc_var = tk.BooleanVar(value=False)
-        self.show_market_cap_vs_btc_checkbox = tk.Checkbutton(self.input_subframe, text="Show Market Cap vs. Bitcoin",
-                                                              variable=self.show_market_cap_vs_btc_var,
-                                                              command=self.update_display_if_valid, bg=COLOR_FG,
-                                                              fg=COLOR_BG, font=("Arial", 12))
-        self.show_market_cap_vs_btc_checkbox.grid(row=checkbox_row, column=1, padx=10, pady=5, sticky="w")
-
         # Metrics subframe
         tk.Label(self.metrics_subframe, text="Portfolio Metrics", bg=COLOR_FG, fg=COLOR_BG,
                  font=("Arial", 14, "bold")).grid(row=0, column=0, pady=(5, 5), sticky="nsew")
@@ -411,36 +396,62 @@ class KaspaPortfolioApp:
         # New Slider Frame
         self.slider_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=10)
         self.slider_frame.pack(fill="x", pady=10)
-        tk.Label(self.slider_frame, text="Adjust KAS Price", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).pack(
+        tk.Label(self.slider_frame, text="KAS Price Slider", bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 14, "bold")).pack(
             pady=(0, 5))
 
-        # Slider for KAS price (range from 0.01 to 1000, matching generate_price_intervals)
-        self.slider_var = tk.DoubleVar(value=0.01)  # Default to minimum price
-        self.slider = tk.Scale(self.slider_frame, from_=0.01, to=1000, resolution=0.01, orient=tk.HORIZONTAL,
-                               variable=self.slider_var, length=600, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12),
+        # Label to display the KAS price with a dollar sign
+        self.slider_price_label = tk.Label(self.slider_frame, text="$0.01", bg=COLOR_FG, fg=COLOR_BG,
+                                           font=("Arial", 12))
+        self.slider_price_label.pack(pady=(0, 2))
+
+        # Slider for KAS price (range from 0 to 100, mapped logarithmically to rounded current price to 1000)
+        self.slider_var = tk.DoubleVar(value=0)  # Default to minimum position
+        self.slider = tk.Scale(self.slider_frame, from_=0, to=100, orient=tk.HORIZONTAL, variable=self.slider_var,
+                               length=600, bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12), showvalue=0,
                                command=self.update_slider_values)
         self.slider.pack(pady=5)
 
-        # Frame to hold the labels for KAS Price, Portfolio Value, and Market Cap
+        # Frame to hold the labels for Portfolio Value and Market Cap (using grid for stationary positioning)
         self.slider_labels_frame = tk.Frame(self.slider_frame, bg=COLOR_FG)
         self.slider_labels_frame.pack(fill="x", pady=5)
 
-        # Labels to display the values
-        self.kas_price_label = tk.Label(self.slider_labels_frame, text="KAS Price: $0.01", bg=COLOR_FG, fg=COLOR_BG,
-                                        font=("Arial", 12, "bold"))
-        self.kas_price_label.pack(side="left", padx=20)
-        self.portfolio_value_label = tk.Label(self.slider_labels_frame, text="Portfolio Value: $0.00", bg=COLOR_FG,
-                                              fg=COLOR_BG, font=("Arial", 12, "bold"))
-        self.portfolio_value_label.pack(side="left", padx=20)
-        self.market_cap_label = tk.Label(self.slider_labels_frame, text="KAS Market Cap: $0.00", bg=COLOR_FG,
-                                         fg=COLOR_BG, font=("Arial", 12, "bold"))
-        self.market_cap_label.pack(side="left", padx=20)
+        # Labels to display the values using grid layout
+        self.slider_labels_frame.grid_columnconfigure(0, weight=1)
+        self.slider_labels_frame.grid_columnconfigure(1, weight=1)
+
+        tk.Label(self.slider_labels_frame, text="Portfolio Value:", bg=COLOR_FG, fg=COLOR_BG,
+                 font=("Arial", 12, "bold")).grid(row=0, column=0, sticky="w", padx=20)
+        self.portfolio_value_label = tk.Label(self.slider_labels_frame, text="$0.00", bg=COLOR_FG, fg=COLOR_BG,
+                                              font=("Arial", 12))
+        self.portfolio_value_label.grid(row=0, column=1, sticky="w", padx=20)
+
+        tk.Label(self.slider_labels_frame, text="KAS Market Cap:", bg=COLOR_FG, fg=COLOR_BG,
+                 font=("Arial", 12, "bold")).grid(row=1, column=0, sticky="w", padx=20)
+        self.market_cap_label = tk.Label(self.slider_labels_frame, text="$0.00", bg=COLOR_FG, fg=COLOR_BG,
+                                         font=("Arial", 12))
+        self.market_cap_label.grid(row=1, column=1, sticky="w", padx=20)
 
         # Display frame with projection table
         self.display_frame = tk.Frame(self.main_frame, bg=COLOR_FG, bd=4, relief="ridge", padx=20, pady=15)
         self.display_frame.pack(fill="both", expand=True, pady=10, padx=0)
         tk.Label(self.display_frame, text="Your Portfolio Projection", bg=COLOR_FG, fg=COLOR_BG,
-                 font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="n")
+                 font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 5), sticky="n")
+
+        # Frame for checkboxes
+        self.checkbox_frame = tk.Frame(self.display_frame, bg=COLOR_FG)
+        self.checkbox_frame.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
+        self.show_change_var = tk.BooleanVar(value=False)
+        self.show_change_checkbox = tk.Checkbutton(self.checkbox_frame, text="Show Change Column",
+                                                   variable=self.show_change_var, command=self.update_display_if_valid,
+                                                   bg=COLOR_FG, fg=COLOR_BG, font=("Arial", 12))
+        self.show_change_checkbox.pack(side="left", padx=10)
+        self.show_market_cap_vs_btc_var = tk.BooleanVar(value=False)
+        self.show_market_cap_vs_btc_checkbox = tk.Checkbutton(self.checkbox_frame, text="Show Market Cap vs. Bitcoin",
+                                                              variable=self.show_market_cap_vs_btc_var,
+                                                              command=self.update_display_if_valid, bg=COLOR_FG,
+                                                              fg=COLOR_BG, font=("Arial", 12))
+        self.show_market_cap_vs_btc_checkbox.pack(side="left", padx=10)
+
         self.tree = ttk.Treeview(self.display_frame,
                                  columns=("Price", "Portfolio", "MarketCap", "Change", "Market Cap vs. BTC"),
                                  show="headings", height=20)
@@ -463,11 +474,11 @@ class KaspaPortfolioApp:
         # Set the initial displayed columns to exclude "Change" and "Market Cap vs. BTC"
         self.tree["displaycolumns"] = ["Price", "Portfolio", "MarketCap"]
 
-        self.tree.grid(row=1, column=0, sticky="nsew")
+        self.tree.grid(row=2, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(self.display_frame, orient="vertical", command=self.tree.yview)
-        scrollbar.grid(row=1, column=1, sticky="ns")
+        scrollbar.grid(row=2, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
-        self.display_frame.grid_rowconfigure(1, weight=1)
+        self.display_frame.grid_rowconfigure(2, weight=1)
         self.display_frame.grid_columnconfigure(0, weight=1)
 
         # Treeview styling
@@ -535,6 +546,19 @@ class KaspaPortfolioApp:
         finally:
             self.hide_loading()
             self.update_display_if_valid()
+            # Update the slider's initial position to the current price if available
+            try:
+                current_price = float(self.entries["Current Price (USD):"].get().replace(',', ''))
+                rounded_current_price = round(current_price, 2)
+                # Map the current price to the slider position (0 to 100)
+                min_price = rounded_current_price if rounded_current_price > 0 else 0.01
+                max_price = 1000
+                if min_price != max_price:
+                    slider_position = 0  # Start at the minimum (current price)
+                    self.slider_var.set(slider_position)
+                    self.update_slider_values()
+            except (ValueError, KeyError):
+                pass  # If price isn't available yet, slider remains at default
 
     def fetch_data(self):
         self.show_loading()
@@ -566,6 +590,18 @@ class KaspaPortfolioApp:
             else:
                 self.hide_check_mark("KAS Holdings:")
                 self.show_x_mark("KAS Holdings:")
+
+            # Update the slider's initial position to the current price
+            current_price = float(self.entries["Current Price (USD):"].get().replace(',', ''))
+            rounded_current_price = round(current_price, 2)
+            # Map the current price to the slider position (0 to 100)
+            min_price = rounded_current_price if rounded_current_price > 0 else 0.01
+            max_price = 1000
+            if min_price != max_price:
+                # Inverse of the logarithmic mapping: position = 100 * log(price / min_price) / log(max_price / min_price)
+                slider_position = 0  # Start at the minimum (current price)
+                self.slider_var.set(slider_position)
+                self.update_slider_values()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch data: {str(e)}")
         finally:
@@ -755,8 +791,22 @@ class KaspaPortfolioApp:
                 self.btc_summary_line3.config(text="")
 
     def update_slider_values(self, event=None):
-        # Get the current KAS price from the slider
-        kas_price = self.slider_var.get()
+        # Get the current KAS price (rounded to 2 decimal places, as in generate_price_intervals)
+        try:
+            current_price = float(self.entries["Current Price (USD):"].get().replace(',', ''))
+            min_price = round(current_price, 2)  # This is the "black row" price
+        except (ValueError, KeyError):
+            min_price = 0.01  # Fallback if price is not available
+
+        max_price = 1000  # Upper bound of the slider
+
+        # Get the slider position (0 to 100)
+        slider_position = self.slider_var.get()
+
+        # Map the slider position to a logarithmic price from min_price to max_price
+        if min_price <= 0:  # Prevent log of zero or negative
+            min_price = 0.01
+        kas_price = min_price * (max_price / min_price) ** (slider_position / 100)
 
         # Get the current KAS holdings, circulating supply, and currency
         try:
@@ -779,9 +829,9 @@ class KaspaPortfolioApp:
         market_cap = circulating_supply * kas_price * rate
 
         # Update the labels
-        self.kas_price_label.config(text=f"KAS Price: {symbol}{kas_price:.2f}")
-        self.portfolio_value_label.config(text=f"Portfolio Value: {symbol}{portfolio_value:,.2f}")
-        self.market_cap_label.config(text=f"KAS Market Cap: {symbol}{market_cap:,.2f}")
+        self.slider_price_label.config(text=f"{symbol}{kas_price:.2f}")
+        self.portfolio_value_label.config(text=f"{symbol}{portfolio_value:,.2f}")
+        self.market_cap_label.config(text=f"{symbol}{market_cap:,.2f}")
 
     def update_display_columns(self):
         display_columns = ["Price", "Portfolio", "MarketCap"]
