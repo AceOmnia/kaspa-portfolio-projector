@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Kaspa Portfolio Projector (KPP) — v1.0.0 (status-bar + headings edition)
+# Kaspa Portfolio Projector (KPP) — v1.0.1 (status-bar + headings edition)
 
 """
 Kaspa Portfolio Projector (KPP)
@@ -92,7 +92,7 @@ def resource_path(relative_path: str) -> str:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 # Colors and UI constants
 COLOR_BG = "#70C7BA"        # Teal accent
@@ -357,6 +357,22 @@ def generate_portfolio_pdf(df, filename, title, kas_amount, current_price_usd,
         f"(~{ratio:.2f} × current Bitcoin market cap of {mm(btc_mcap_cur)})."
     )
     pdf.multi_cell(0, 5, summary); pdf.ln(4)
+
+    # Quick Stats
+    fields = [
+        ("Current KAS Price:", f"{sym}{(current_price_usd*rate):,.4f}"),
+        ("Current KAS Holdings:", f"{kas_amount:,.2f} KAS"),
+        ("Current KAS Portfolio Value:", mm(portfolio_value)),
+        ("Current KAS Market Cap:", mm(market_cap)),
+        ("KAS Price Needed for $1M Portfolio:", mm(price_needed_for_1m_usd*rate)),
+        ("KAS Market Cap Needed for $1M Portfolio:", mm(mcap_needed_for_1m)),
+    ]
+    pdf.set_font("Helvetica", "", 11)
+    for k, v in fields:
+        pdf.cell(90, 6, k, ln=False)
+        pdf.cell(0, 6, v, ln=True, align="R")
+    pdf.ln(6)
+    # === END QUICK STATS ===
 
     header_bg = (230, 230, 230)
     row_fill_a = (248, 248, 248)
