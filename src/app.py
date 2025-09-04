@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Kaspa Portfolio Projector (KPP) — v1.2.2 (two-tab + fast fetch + hover + sortable compare + shorter slider)
+# Kaspa Portfolio Projector (KPP) — v1.2.3 (two-tab + fast fetch + hover + sortable compare + shorter slider)
 
 """
 Kaspa Portfolio Projector (KPP)
@@ -9,7 +9,7 @@ A Tkinter-based desktop application for projecting and analyzing the value of a 
 across varying market prices and market capitalizations. Provides real-time data fetching from CoinGecko
 and exchange rate APIs, dynamic currency conversion, and export capabilities for PDF and CSV reports.
 
-v1.2.2:
+v1.2.3:
 - Slider shortened (length 440) so the 'KAS Market Cap' field is no longer clipped.
 - Includes prior improvements:
   - Fast parallel API fetching (FX + CoinGecko markets in one call)

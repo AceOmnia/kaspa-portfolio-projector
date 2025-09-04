@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 # Version
-VERSION: str = "1.2.2"
+VERSION: str = "1.2.3"
 
 # Currency support
 SUPPORTED_CURRENCIES: List[str] = [

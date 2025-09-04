@@ -2,6 +2,14 @@
 
 A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report. The application also automatically fetches real-time Kaspa price data, circulating supply, Bitcoin market cap, and exchange rates from CoinGecko and a currency FX API, with robust error handling and status feedback. Users can export detailed projections in both PDF and CSV formats.
 
+## Changelog
+
+- 1.2.3
+  - Moved all source code under `src/` and updated run/build commands
+  - Added Watchlist, Targets (with custom targets), and Scenarios tabs
+  - Added retry toasts and minor UX fixes (debounced validation tweaks)
+  - No behavior changes beyond new tabs; existing features preserved
+
 ## Features
 
 - Automatically fetches real-time Kaspa price, circulating supply, Bitcoin market cap, and fiat exchange rates on startup.
