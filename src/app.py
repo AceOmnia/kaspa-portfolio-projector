@@ -2,8 +2,8 @@
 # Kaspa Portfolio Projector (KPP) — v1.2.2 (two-tab + fast fetch + hover + sortable compare + shorter slider)
 
 """
-Kaspa Portfolio Portfolio Projector (KPP)
-=========================================
+Kaspa Portfolio Projector (KPP)
+===============================
 
 A Tkinter-based desktop application for projecting and analyzing the value of a Kaspa (KAS) portfolio
 across varying market prices and market capitalizations. Provides real-time data fetching from CoinGecko
@@ -25,7 +25,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from datetime import datetime, timezone
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -38,6 +38,23 @@ from PIL import Image, ImageTk, ImageColor
 import sv_ttk
 import requests
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from src.data.constants import (
+    VERSION as KPP_VERSION,
+    SUPPORTED_CURRENCIES as CONST_SUPPORTED_CURRENCIES,
+    EXCHANGE_RATES as CONST_EXCHANGE_RATES,
+    CURRENCY_SYMBOLS as CONST_CURRENCY_SYMBOLS,
+)
+from src.util.resources import resource_path as util_resource_path
+from src.util.formatting import (
+    currency_symbol as util_currency_symbol,
+    fmt_money as util_fmt_money,
+    usd_to_disp as util_usd_to_disp,
+    disp_to_usd as util_disp_to_usd,
+    extract_number as util_extract_number,
+)
+from src.data.api import fetch_fx_rates_fast as api_fetch_fx_rates_fast, fetch_markets_fast as api_fetch_markets_fast
 
 # -----------------------------------------------------------------------------
 # Logging
@@ -49,25 +66,16 @@ logger = logging.getLogger("KPP")
 # Paths / Resources
 # -----------------------------------------------------------------------------
 def resource_path(relative_path: str) -> str:
-    if getattr(sys, "frozen", False):
-        base_path = sys._MEIPASS  # type: ignore[attr-defined]
-    else:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
+    return util_resource_path(relative_path)
 
-VERSION = "1.2.2"
+VERSION = KPP_VERSION
 
 # Colors and UI constants
-COLOR_BG = "#70C7BA"        # Teal accent
-COLOR_FG = "#231F20"        # Dark card
-CHECKMARK_COLOR = "#00e676"
-X_MARK_COLOR = "#ff6b6b"
-BUTTON_BG = "#00C4B4"
-BUTTON_FG = "#FFFFFF"
+from src.data.ui_constants import (
+    COLOR_BG, COLOR_FG, CHECKMARK_COLOR, X_MARK_COLOR, BUTTON_BG, BUTTON_FG,
+    LOGO_PATH, LOGO_PATH_LIGHT, ICON_PATH,
+)
 
-LOGO_PATH = resource_path(os.path.join("pics", "Kaspa-LDSP-Dark-Reverse.png"))
-LOGO_PATH_LIGHT = resource_path(os.path.join("pics", "Kaspa-LDSP-Dark-Full-Color.png"))
-ICON_PATH = resource_path(os.path.join("pics", "kaspa.ico"))
 
 PLACEHOLDERS = {
     "Portfolio Name:": "e.g., My Kaspa Holdings",
@@ -81,46 +89,31 @@ NUMERIC_FIELDS = ["KAS Holdings:", "Current Price (USD):", "Circulating Supply (
 # -----------------------------------------------------------------------------
 # Currency support
 # -----------------------------------------------------------------------------
-SUPPORTED_CURRENCIES = [
-    "USD", "EUR", "GBP", "JPY", "AUD",
-    "CAD", "CHF", "CNY", "HKD", "INR",
-    "NZD", "SEK", "NOK", "DKK", "SGD",
-    "KRW", "MXN", "BRL", "ZAR", "TRY",
-    "PLN", "THB", "TWD", "IDR", "MYR",
-    "PHP", "ILS", "AED", "SAR", "RUB",
-]
+SUPPORTED_CURRENCIES = CONST_SUPPORTED_CURRENCIES
 
 # Fallback rates (base = USD). Live rates overwrite these on fetch.
-EXCHANGE_RATES: Dict[str, float] = {
-    "USD": 1.0,  "EUR": 0.92, "GBP": 0.79, "JPY": 149.50, "AUD": 1.55,
-    "CAD": 1.35, "CHF": 0.88, "CNY": 7.25, "HKD": 7.80,   "INR": 83.00,
-    "NZD": 1.68, "SEK": 10.50,"NOK": 10.60,"DKK": 6.85,   "SGD": 1.35,
-    "KRW": 1330.00,"MXN":17.00,"BRL": 5.20,"ZAR": 18.20,  "TRY": 33.00,
-    "PLN": 4.05, "THB": 35.50,"TWD": 32.00,"IDR": 15400.0,"MYR": 4.70,
-    "PHP": 56.50,"ILS": 3.70, "AED": 3.6725,"SAR": 3.75,  "RUB": 92.00,
-}
+EXCHANGE_RATES = CONST_EXCHANGE_RATES
 
-CURRENCY_SYMBOLS: Dict[str, str] = {
-    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "AUD": "A$",
-    "CAD": "C$", "CHF": "CHF", "CNY": "¥", "HKD": "HK$", "INR": "₹",
-    "NZD": "NZ$", "SEK": "kr", "NOK": "kr", "DKK": "kr", "SGD": "S$",
-    "KRW": "₩", "MXN": "MX$", "BRL": "R$", "ZAR": "R", "TRY": "₺",
-    "PLN": "zł", "THB": "฿", "TWD": "NT$", "IDR": "Rp", "MYR": "RM",
-    "PHP": "₱", "ILS": "₪", "AED": "د.إ", "SAR": "ر.س", "RUB": "₽",
-}
+CURRENCY_SYMBOLS = CONST_CURRENCY_SYMBOLS
 
 def currency_symbol(code: str) -> str:
-    return CURRENCY_SYMBOLS.get(code.upper(), "$")
+    return util_currency_symbol(code)
 
 def fmt_money(symbol: str, value: float, decimals: int = 2) -> str:
-    return f"{symbol}{value:,.{decimals}f}"
+    return util_fmt_money(symbol, value, decimals)
 
 def usd_to_disp(value_usd: float, currency: str) -> float:
-    return value_usd * EXCHANGE_RATES.get(currency.upper(), 1.0)
+    return util_usd_to_disp(value_usd, currency)
 
 def disp_to_usd(value_disp: float, currency: str) -> float:
-    rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
-    return value_disp / rate if rate else 0.0
+    return util_disp_to_usd(value_disp, currency)
+
+# -----------------------------------------------------------------------------
+# Parsing utilities
+# -----------------------------------------------------------------------------
+# Strings/symbols that may appear in formatted currency values
+def extract_number(value: Any) -> float:
+    return util_extract_number(value)
 
 # -----------------------------------------------------------------------------
 # Top coins for the Comparisons tab (CoinGecko IDs) + display names
@@ -136,6 +129,31 @@ TOP_COINS: List[str] = [
     "tron",
     "the-open-network",  # Toncoin (TON)
     "litecoin",
+    # Added
+    "polkadot",
+    "avalanche-2",
+    "chainlink",
+    "matic-network",
+    "internet-computer",
+    "shiba-inu",
+    "uniswap",
+    "near",
+    "stellar",
+    "monero",
+    "bitcoin-cash",
+    "aptos",
+    "arbitrum",
+    "pepe",
+    "render-token",
+    "cosmos",
+    "vechain",
+    "algorand",
+    "filecoin",
+    "optimism",
+    "lido-dao",
+    "aave",
+    "fantom",
+    "theta-token",
 ]
 
 DISPLAY_NAMES: Dict[str, str] = {
@@ -150,6 +168,31 @@ DISPLAY_NAMES: Dict[str, str] = {
     "the-open-network": "Toncoin (TON)",
     "litecoin": "Litecoin (LTC)",
     "kaspa": "Kaspa (KAS)",
+    # Added
+    "polkadot": "Polkadot (DOT)",
+    "avalanche-2": "Avalanche (AVAX)",
+    "chainlink": "Chainlink (LINK)",
+    "matic-network": "Polygon (MATIC)",
+    "internet-computer": "Internet Computer (ICP)",
+    "shiba-inu": "Shiba Inu (SHIB)",
+    "uniswap": "Uniswap (UNI)",
+    "near": "NEAR Protocol (NEAR)",
+    "stellar": "Stellar (XLM)",
+    "monero": "Monero (XMR)",
+    "bitcoin-cash": "Bitcoin Cash (BCH)",
+    "aptos": "Aptos (APT)",
+    "arbitrum": "Arbitrum (ARB)",
+    "pepe": "Pepe (PEPE)",
+    "render-token": "Render (RNDR)",
+    "cosmos": "Cosmos (ATOM)",
+    "vechain": "VeChain (VET)",
+    "algorand": "Algorand (ALGO)",
+    "filecoin": "Filecoin (FIL)",
+    "optimism": "Optimism (OP)",
+    "lido-dao": "Lido DAO (LDO)",
+    "aave": "Aave (AAVE)",
+    "fantom": "Fantom (FTM)",
+    "theta-token": "Theta Network (THETA)",
 }
 
 # -----------------------------------------------------------------------------
@@ -245,82 +288,72 @@ def make_horizontal_gradient(width, height, stops):
 def _retry_get_json(url: str, params: Dict[str, Any], retries: int = 2, timeout: int = 10):
     for attempt in range(retries + 1):
         try:
-            r = requests.get(url, params=params, timeout=timeout)
+            r = get_http_session().get(url, params=params, timeout=timeout)
             r.raise_for_status()
             return r.json()
         except Exception as e:
             logger.warning(f"GET {url} attempt {attempt+1} failed: {e}")
             if attempt < retries:
+                # Emit a small toast on likely rate-limit/server hiccup
+                _toast("Rate limited or server busy, retrying…", 1400)
                 time.sleep(0.5)
+    # Final failure
+    _toast("Failed to fetch latest data.", 1800)
     return None
 
+# -----------------------------------------------------------------------------
+# HTTP session with retries
+# -----------------------------------------------------------------------------
+SESSION: requests.Session | None = None
+
+def get_http_session() -> requests.Session:
+    """Create or return a shared HTTP session with retry/backoff.
+
+    Retries on 429/5xx with exponential backoff. Reuses connections for speed.
+    """
+    global SESSION
+    if SESSION is None:
+        session = requests.Session()
+        retry = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"],
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        session.headers.update({
+            "User-Agent": f"Kaspa-Portfolio-Projector/{VERSION} (+https://www.kaspa.org)",
+            "Accept": "application/json",
+        })
+        SESSION = session
+    return SESSION
+
+# -----------------------------------------------------------------------------
+# Toast notifications (non-intrusive status messages)
+# -----------------------------------------------------------------------------
+TOAST_CALLBACK: Optional[Callable[[str, int], None]] = None
+
+def register_toast_callback(cb: Callable[[str, int], None]):
+    global TOAST_CALLBACK
+    TOAST_CALLBACK = cb
+
+def _toast(msg: str, duration_ms: int = 1600):
+    if TOAST_CALLBACK:
+        try:
+            TOAST_CALLBACK(msg, duration_ms)
+        except Exception:
+            pass
+
 def fetch_fx_rates_fast() -> Dict[str, Any]:
-    fetched_at = datetime.now(timezone.utc).isoformat()
-    params = {"base": "USD", "symbols": ",".join(SUPPORTED_CURRENCIES)}
-    data = _retry_get_json("https://api.exchangerate.host/latest", params=params, retries=2, timeout=8)
-    out_rates = {}
-    if data and "rates" in data:
-        rates = data["rates"]
-        for k in SUPPORTED_CURRENCIES:
-            v = rates.get(k, EXCHANGE_RATES.get(k, 1.0))
-            try:
-                v = float(v)
-            except Exception:
-                v = EXCHANGE_RATES.get(k, 1.0)
-            out_rates[k] = v if v > 0 else EXCHANGE_RATES.get(k, 1.0)
-        src = "exchangerate.host/latest (base=USD)"
-    else:
-        out_rates = EXCHANGE_RATES.copy()
-        src = "exchangerate.host/latest (base=USD) (fallback used)"
-    return {"rates": out_rates, "fetched_at": fetched_at, "source": src}
+    # Delegate to data.api while preserving return shape
+    return api_fetch_fx_rates_fast(SUPPORTED_CURRENCIES, EXCHANGE_RATES, toast=_toast)
 
 def fetch_markets_fast(ids: List[str]) -> Dict[str, Any]:
-    fetched_at = datetime.now(timezone.utc).isoformat()
-    params = {
-        "vs_currency": "usd",
-        "ids": ",".join(ids),
-        "per_page": len(ids),
-        "page": 1,
-        "precision": "full",
-        "price_change_percentage": "",
-        "locale": "en",
-    }
-    data = _retry_get_json("https://api.coingecko.com/api/v3/coins/markets", params=params, retries=2, timeout=10)
-    out: Dict[str, Any] = {"fetched_at": fetched_at, "source": "CoinGecko /coins/markets"}
-    if not data:
-        return out
-    try:
-        by_id = {row.get("id"): row for row in data if isinstance(row, dict)}
-        out["by_id"] = by_id
-
-        kas = by_id.get("kaspa", {})
-        if kas:
-            out["kaspa_price"] = float(kas.get("current_price") or 0.0)
-            out["kaspa_supply"] = float(kas.get("circulating_supply") or 0.0)
-
-        btc = by_id.get("bitcoin", {})
-        if btc:
-            out["btc_market_cap"] = float(btc.get("market_cap") or 0.0)
-
-        current_caps = {}
-        for cid in TOP_COINS:
-            row = by_id.get(cid, {})
-            cap = float(row.get("market_cap") or 0.0)
-            current_caps[cid] = cap
-        out["top_current_caps"] = current_caps
-
-        detail = {}
-        for cid in TOP_COINS:
-            row = by_id.get(cid, {})
-            detail[cid] = {
-                "circulating_supply": float(row.get("circulating_supply") or 0.0),
-                "ath_price_usd": float(row.get("ath") or 0.0),
-            }
-        out["top_detail"] = detail
-
-    except Exception as e:
-        logger.warning(f"Failed to parse markets data: {e}")
-    return out
+    # Delegate to data.api while preserving return shape
+    return api_fetch_markets_fast(ids, toast=_toast)
 
 # -----------------------------------------------------------------------------
 # Projection math
@@ -378,110 +411,7 @@ def generate_portfolio_projection(kas_amount: float, current_price_usd: float,
 # -----------------------------------------------------------------------------
 # PDF
 # -----------------------------------------------------------------------------
-def generate_portfolio_pdf(df, filename, title, kas_amount, current_price_usd,
-                           circ_supply_b, currency, btc_market_cap, progress_cb=None):
-    formatted_title = (title.capitalize() + " Portfolio Projection") if title else "Unnamed Portfolio Projection"
-    rate = EXCHANGE_RATES.get(currency.upper(), 1.0)
-    sym = currency_symbol(currency)
-
-    circ_supply = circ_supply_b * 1_000_000_000
-    market_cap = current_price_usd * circ_supply * rate
-    portfolio_value = kas_amount * current_price_usd * rate
-
-    price_needed_for_1m_usd = 1_000_000 / kas_amount if kas_amount > 0 else 0
-    mcap_needed_for_1m_usd = price_needed_for_1m_usd * circ_supply
-    mcap_needed_for_1m = mcap_needed_for_1m_usd * rate
-    btc_mcap_cur = (btc_market_cap or 0) * rate
-    ratio = (mcap_needed_for_1m_usd / btc_market_cap) if btc_market_cap else 0
-
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=False, margin=12)
-    pdf.add_page()
-    try: pdf.image(LOGO_PATH_LIGHT, x=10, y=6, w=50)
-    except Exception: pass
-
-    pdf.set_font("Helvetica", "B", 22)
-    title_w = pdf.get_string_width(formatted_title)
-    pdf.set_xy(200 - title_w - 10, 10); pdf.cell(0, 10, formatted_title, ln=True, align="R")
-
-    pdf.set_font("Helvetica", "", 7)
-    sub = "Generated by Kaspa Portfolio Projector (KPP)"
-    sub_w = pdf.get_string_width(sub)
-    pdf.set_xy(200 - sub_w - 10, 20); pdf.cell(0, 5, sub, ln=True, align="R")
-
-    date = datetime.now(timezone.utc).strftime("%B %d, %Y")
-    date_w = pdf.get_string_width(date)
-    pdf.set_xy(200 - date_w - 10, 25); pdf.cell(0, 5, date, ln=True, align="R")
-
-    pdf.set_draw_color(150, 150, 150); pdf.line(10, 30, 200, 30); pdf.ln(10)
-
-    pdf.set_text_color(20, 20, 20)
-    pdf.set_font("Helvetica", "B", 14); pdf.cell(0, 8, "Portfolio Facts", ln=True); pdf.ln(4)
-    pdf.set_font("Helvetica", "", 10)
-
-    def mm(v): return f"{sym}{v:,.2f}"
-    summary = (
-        f"The {title or 'Unnamed'} Kaspa portfolio holds {kas_amount:,.2f} KAS. "
-        f"Current portfolio value: {mm(portfolio_value)}. "
-        f"Kaspa market cap: {mm(market_cap)}. "
-        f"To reach a $1M portfolio: KAS price {mm(price_needed_for_1m_usd*rate)} "
-        f"and market cap {mm(mcap_needed_for_1m)} "
-        f"(~{ratio:.2f} × current Bitcoin market cap of {mm(btc_mcap_cur)})."
-    )
-    pdf.multi_cell(0, 5, summary); pdf.ln(4)
-
-    fields = [
-        ("Current KAS Price:", f"{sym}{(current_price_usd*rate):,.4f}"),
-        ("Current KAS Holdings:", f"{kas_amount:,.2f} KAS"),
-        ("Current KAS Portfolio Value:", mm(portfolio_value)),
-        ("Current KAS Market Cap:", mm(market_cap)),
-        ("KAS Price Needed for $1M Portfolio:", mm(price_needed_for_1m_usd*rate)),
-        ("KAS Market Cap Needed for $1M Portfolio:", mm(mcap_needed_for_1m)),
-    ]
-    pdf.set_font("Helvetica", "", 11)
-    for k, v in fields:
-        pdf.cell(90, 6, k, ln=False)
-        pdf.cell(0, 6, v, ln=True, align="R")
-    pdf.ln(6)
-
-    header_bg = (230, 230, 230)
-    row_fill_a = (248, 248, 248)
-    row_fill_b = (255, 255, 255)
-    text_norm = (20, 20, 20)
-    red = (200, 0, 0); green = (0, 140, 70); black = text_norm
-
-    def table_header():
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_fill_color(*header_bg); pdf.set_text_color(*text_norm)
-        pdf.cell(63, 8, f"Price ({currency.upper()})", border=1, align="C", fill=True)
-        pdf.cell(63, 8, f"Portfolio ({currency.upper()})", border=1, align="C", fill=True)
-        pdf.cell(63, 8, f"Market Cap ({currency.upper()})", border=1, align="C", fill=True)
-        pdf.ln()
-        pdf.set_font("Helvetica", "", 10)
-
-    def page_break_if_needed():
-        if pdf.get_y() > 265:
-            pdf.add_page(); table_header()
-
-    table_header()
-    total = len(df)
-    for i, (_, row) in enumerate(df.iterrows(), 1):
-        page_break_if_needed()
-        fill_color = row_fill_a if i % 2 == 0 else row_fill_b
-        pdf.set_fill_color(*fill_color)
-        color = red if row["Color"] == "red" else green if row["Color"] == "green" else black
-        pdf.set_text_color(*color)
-        pdf.cell(63, 8, f"{sym}{row['Price']:,.2f}", border=1, align="C", fill=True)
-        pdf.set_text_color(*text_norm)
-        pdf.cell(63, 8, f"{sym}{row['Portfolio']:,.2f}", border=1, align="C", fill=True)
-        pdf.cell(63, 8, f"{sym}{row['Market Cap']:,.2f}", border=1, align="C", fill=True)
-        pdf.ln()
-        if progress_cb and total:
-            progress_cb(i * 100.0 / total)
-
-    pdf.set_y(-10); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "", 7)
-    pdf.cell(0, 5, "Generated by Kaspa Portfolio Projector (KPP)", 0, 0, "C")
-    pdf.output(filename)
+from src.exporters.pdf_export import generate_portfolio_pdf
 
 # -----------------------------------------------------------------------------
 # Main App
@@ -496,10 +426,12 @@ class KaspaPortfolioApp:
         except Exception: pass
 
         apply_modern_style(self.root)
-        self._debounce_after = None
+        # Debounce map per-widget to avoid cross-field cancellations
+        self._debounce_after_by_widget: Dict[tk.Widget, str] = {}
         self.fetched_data: Dict[str, Any] = {}
         self._sort_state: Dict[str, bool] = {}
         self._compare_sort_state: Dict[str, bool] = {}  # comparisons table sort state
+        self._watchlist_sort_state: Dict[str, bool] = {}
 
         # Header (canvas gradient)
         self.top_frame = tk.Frame(root, height=110, bd=0, highlightthickness=0)
@@ -578,8 +510,36 @@ class KaspaPortfolioApp:
         self.tab_compare = tk.Frame(self.notebook, bg="#121212")
         self.notebook.add(self.tab_projection, text="Projection")
         self.notebook.add(self.tab_compare, text="Comparisons")
+        self.tab_watchlist = tk.Frame(self.notebook, bg="#121212")
+        self.tab_targets = tk.Frame(self.notebook, bg="#121212")
+        self.tab_scenarios = tk.Frame(self.notebook, bg="#121212")
+        self.notebook.add(self.tab_watchlist, text="Watchlist")
+        self.notebook.add(self.tab_targets, text="Targets")
+        self.notebook.add(self.tab_scenarios, text="Scenarios")
         self._build_projection_tab(self.tab_projection)
         self._build_comparisons_tab(self.tab_compare)
+        self._build_watchlist_tab(self.tab_watchlist)
+        self._build_targets_tab(self.tab_targets)
+        self._build_scenarios_tab(self.tab_scenarios)
+
+        # Toast label (ephemeral, top-right)
+        self._toast_after = None
+        self.toast_frame = tk.Frame(self.body_container, bg="#1e1e1e")
+        self.toast_label = ttk.Label(self.toast_frame, text="", background="#1e1e1e", foreground="#eaeaea")
+        self.toast_label.pack(padx=10, pady=6)
+
+        def _show_toast(msg: str, duration_ms: int = 1600):
+            try:
+                if self._toast_after:
+                    self.root.after_cancel(self._toast_after)
+                self.toast_label.config(text=msg)
+                # Place at top-right of the main window
+                self.toast_frame.place(relx=1.0, rely=0.0, x=-20, y=20, anchor="ne")
+                self._toast_after = self.root.after(duration_ms, lambda: self.toast_frame.place_forget())
+            except Exception:
+                pass
+
+        register_toast_callback(lambda msg, dur: self.root.after(0, _show_toast, msg, dur))
 
         # Initial data pull (parallel FX + markets)
         self.fetch_data_on_startup()
@@ -676,6 +636,13 @@ class KaspaPortfolioApp:
         self.update_slider_values()
         self.update_display_if_valid()
         self._refresh_comparisons()
+        # Also refresh new tabs so they show data immediately
+        try: self._refresh_watchlist()
+        except Exception: pass
+        try: self._refresh_targets()
+        except Exception: pass
+        try: self._refresh_scenarios()
+        except Exception: pass
 
     def fetch_data_on_startup(self):
         self.start_status("Fetching data (FX + Markets)…")
@@ -786,8 +753,21 @@ class KaspaPortfolioApp:
                     self.update_display_if_valid()
 
     def _debounced_update_field_and_check(self, event):
-        if self._debounce_after: self.root.after_cancel(self._debounce_after)
-        self._debounce_after = self.root.after(200, lambda: self.update_field_and_check(event.widget))
+        widget = event.widget
+        label = next((l for l, e in self.entries.items() if e == widget), None)
+        # For non-heavy fields like Portfolio Name, update immediately for snappy feedback
+        if label == "Portfolio Name:":
+            self.update_field_and_check(widget)
+            return
+        # Debounce per widget for numeric fields
+        after_id = self._debounce_after_by_widget.get(widget)
+        if after_id:
+            try:
+                self.root.after_cancel(after_id)
+            except Exception:
+                pass
+        new_id = self.root.after(200, lambda w=widget: self.update_field_and_check(w))
+        self._debounce_after_by_widget[widget] = new_id
 
     def update_field_and_check(self, widget):
         label = next((l for l, e in self.entries.items() if e == widget), None)
@@ -900,6 +880,11 @@ class KaspaPortfolioApp:
 
             # keep Comparisons tab in sync whenever inputs are valid
             self._refresh_comparisons()
+            # also refresh Targets and Scenarios automatically
+            try: self._refresh_targets()
+            except Exception: pass
+            try: self._refresh_scenarios()
+            except Exception: pass
 
     def update_display_columns(self):
         cols = ["Price", "Portfolio", "MarketCap"]
@@ -919,30 +904,18 @@ class KaspaPortfolioApp:
         items = [(self.tree.item(item)["values"], item) for item in self.tree.get_children()]
 
         def parse_tuple(val):
+            s = str(val)
             if column in ["Price", "Portfolio", "MarketCap"]:
-                s = str(val).replace("A$", "").replace("C$", "").replace("NZ$", "").replace("HK$", "")\
-                            .replace("S$", "").replace("NT$", "").replace("MX$", "")\
-                            .replace("$", "").replace("€", "").replace("£", "").replace("¥", "")\
-                            .replace("₩", "").replace("R$", "").replace("R", "").replace("₺", "")\
-                            .replace("zł", "").replace("฿", "").replace("Rp", "").replace("RM", "")\
-                            .replace("₱", "").replace("₪", "").replace("د.إ", "").replace("ر.س", "")\
-                            .replace("₽", "")
-                try:
-                    v = float(s.replace(",", "") or 0.0)
-                except Exception:
-                    v = 0.0
-                return (0, v)
+                return (0, extract_number(s))
             if column == "Market Cap vs. BTC":
-                if val in ("", "N/A"): return (1, 0.0)
-                try:
-                    return (0, float(val))
-                except Exception:
+                s_trim = s.strip()
+                if s_trim in ("", "N/A"):
                     return (1, 0.0)
+                return (0, extract_number(s))
             if column == "Change":
-                try:
-                    return (0, float(str(val).split("x")[0]))
-                except Exception:
-                    return (1, 0.0)
+                # Example: '1.2x (+20.0%)' -> 1.2
+                leading = s.split("x", 1)[0]
+                return (0, extract_number(leading))
             return (0, str(val))
 
         reverse = self._sort_state.get(column, False)
@@ -969,8 +942,8 @@ class KaspaPortfolioApp:
 
     def update_slider_from_entry(self, _=None):
         try:
-            entered = float(self.slider_price_entry.get().replace("$", "").replace(",", ""))
-        except ValueError:
+            entered = extract_number(self.slider_price_entry.get())
+        except Exception:
             messagebox.showerror("Error", "Please enter a valid numeric price."); return
         min_p, max_p = self._slider_bounds()
         entered = min(max(entered, min_p), max_p)
@@ -1009,17 +982,7 @@ class KaspaPortfolioApp:
             target_price_disp = usd_to_disp(kas_price, currency)
             for i, item in enumerate(items):
                 price_str = self.tree.item(item, "values")[0]
-                s = (str(price_str).replace("A$", "").replace("C$", "").replace("NZ$", "").replace("HK$", "")
-                                  .replace("S$", "").replace("NT$", "").replace("MX$", "")
-                                  .replace("$", "").replace("€", "").replace("£", "").replace("¥", "")
-                                  .replace("₩", "").replace("R$", "").replace("R", "").replace("₺", "")
-                                  .replace("zł", "").replace("฿", "").replace("Rp", "").replace("RM", "")
-                                  .replace("₱", "").replace("₪", "").replace("د.إ", "").replace("ر.س", "")
-                                  .replace("₽", "").replace(",", ""))
-                try:
-                    price_num = float(s or 0.0)
-                except Exception:
-                    price_num = 0.0
+                price_num = extract_number(price_str)
                 diff = abs(price_num - target_price_disp)
                 if diff < min_diff: min_diff, closest_index = diff, i
             tgt = max(0, closest_index - 1); self.tree.see(items[tgt]); self.tree.yview_moveto(tgt / max(1, len(items)))
@@ -1111,6 +1074,23 @@ class KaspaPortfolioApp:
         try:
             self.compare_currency_var.set(self.currency_var.get())
             self._refresh_comparisons()
+        except Exception:
+            pass
+
+        # Sync Watchlist/Targets/Scenarios currencies and refresh
+        try:
+            self.watchlist_currency_var.set(self.currency_var.get())
+            self._refresh_watchlist()
+        except Exception:
+            pass
+        try:
+            self.targets_currency_var.set(self.currency_var.get())
+            self._refresh_targets()
+        except Exception:
+            pass
+        try:
+            self.scenarios_currency_var.set(self.currency_var.get())
+            self._refresh_scenarios()
         except Exception:
             pass
 
@@ -1411,6 +1391,479 @@ class KaspaPortfolioApp:
                               "• Values convert using your live FX rates."),
                         font=("Segoe UI", 9))
         foot.pack(anchor="w", pady=(8, 0))
+
+    # -------------------------------------------------------------------------
+    # Watchlist Tab (markets snapshot)
+    # -------------------------------------------------------------------------
+    def _build_watchlist_tab(self, parent):
+        wrapper = card_frame(parent, padx=20, pady=15)
+        wrapper.pack(fill="both", expand=True, padx=15, pady=15)
+
+        section_title(wrapper, "Watchlist").pack(fill="x", pady=(0, 8))
+
+        controls = tk.Frame(wrapper, bg=COLOR_FG)
+        controls.pack(fill="x", pady=(0, 10))
+
+        self.watchlist_currency_var = tk.StringVar(value="USD")
+        ttk.Label(controls, text="Currency:", foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(10, 6))
+        self.watchlist_currency_combo = ttk.Combobox(
+            controls, textvariable=self.watchlist_currency_var,
+            values=SUPPORTED_CURRENCIES, state="readonly", width=12, style="Kaspa.TCombobox"
+        )
+        self.watchlist_currency_combo.pack(side="left")
+        self.watchlist_currency_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_watchlist())
+
+        ttk.Button(controls, text="Refresh", style="KaspaSmall.TButton",
+                   command=self._refresh_watchlist).pack(side="right", padx=10)
+        ttk.Button(controls, text="Export CSV", style="KaspaSmall.TButton",
+                   command=self._export_watchlist_csv).pack(side="right", padx=10)
+
+        columns = ("Coin", "Price", "24h %", "Market Cap", "Volume", "Rank")
+        self.watchlist_tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=22)
+        headers = {
+            "Coin": "Coin",
+            "Price": "Price",
+            "24h %": "24h %",
+            "Market Cap": "Market Cap",
+            "Volume": "24h Volume",
+            "Rank": "Rank",
+        }
+        for c in columns:
+            self.watchlist_tree.heading(c, text=headers[c], command=lambda col=c: self._sort_watchlist_table(col))
+        widths = [220, 160, 100, 220, 200, 90]
+        for c, w in zip(columns, widths):
+            self.watchlist_tree.column(c, width=w, anchor="center")
+
+        self.watchlist_tree.tag_configure("even", background="#212121")
+        self.watchlist_tree.tag_configure("odd", background="#1b1b1b")
+        self.watchlist_tree.pack(fill="both", expand=True)
+
+    def _refresh_watchlist(self):
+        # Use existing fetched data
+        d = self.fetched_data or {}
+        by_id: Dict[str, Any] = d.get("by_id", {}) or {}
+        disp_ccy = self.watchlist_currency_var.get().upper() if hasattr(self, 'watchlist_currency_var') else 'USD'
+        sym = currency_symbol(disp_ccy)
+
+        # Clear table
+        if hasattr(self, 'watchlist_tree'):
+            for iid in self.watchlist_tree.get_children():
+                self.watchlist_tree.delete(iid)
+        else:
+            return
+
+        if not by_id:
+            self.watchlist_tree.insert("", "end", values=("No data", "", "", "", "", ""))
+            return
+
+        # Order by market cap desc
+        ids = ["kaspa", "bitcoin", "ethereum"] + [c for c in TOP_COINS if c not in ("kaspa", "bitcoin", "ethereum")]
+        rows = []
+        for cid in ids:
+            row = by_id.get(cid)
+            if not isinstance(row, dict):
+                continue
+            try:
+                price_usd = float(row.get("current_price") or 0.0)
+                mcap_usd = float(row.get("market_cap") or 0.0)
+                vol_usd = float(row.get("total_volume") or 0.0)
+                rank = int(row.get("market_cap_rank") or 0)
+                # Try both cg fields
+                pct = row.get("price_change_percentage_24h_in_currency")
+                if pct is None:
+                    pct = row.get("price_change_percentage_24h")
+                try:
+                    pct = float(pct)
+                except Exception:
+                    pct = 0.0
+                rows.append({
+                    "coin": DISPLAY_NAMES.get(cid, row.get("symbol", cid).upper()),
+                    "price_usd": price_usd,
+                    "mcap_usd": mcap_usd,
+                    "vol_usd": vol_usd,
+                    "rank": rank,
+                    "pct": pct,
+                })
+            except Exception:
+                continue
+
+        rows.sort(key=lambda r: r["mcap_usd"], reverse=True)
+        for i, r in enumerate(rows):
+            tag = "even" if i % 2 == 0 else "odd"
+            price_disp = usd_to_disp(r["price_usd"], disp_ccy)
+            mcap_disp = usd_to_disp(r["mcap_usd"], disp_ccy)
+            vol_disp = usd_to_disp(r["vol_usd"], disp_ccy)
+            pct_str = f"{r['pct']:+.2f}%"
+            self.watchlist_tree.insert(
+                "", "end",
+                values=(
+                    r["coin"],
+                    fmt_money(sym, price_disp),
+                    pct_str,
+                    fmt_money(sym, mcap_disp, 0),
+                    fmt_money(sym, vol_disp, 0),
+                    r["rank"] or "",
+                ),
+                tags=(tag,)
+            )
+
+    def _sort_watchlist_table(self, column: str):
+        cols = list(self.watchlist_tree["columns"]) if hasattr(self, 'watchlist_tree') else []
+        if column not in cols:
+            return
+        col_idx = cols.index(column)
+        items = [(self.watchlist_tree.item(iid)["values"], iid) for iid in self.watchlist_tree.get_children()]
+
+        def key_fn(values):
+            val = values[col_idx]
+            if column in ("Price", "Market Cap", "Volume"):
+                return (0, extract_number(val))
+            if column == "24h %":
+                s = str(val).replace("%", "")
+                return (0, extract_number(s))
+            if column == "Rank":
+                try:
+                    return (0, int(val))
+                except Exception:
+                    return (1, 0)
+            return (0, str(val))
+
+        reverse = self._watchlist_sort_state.get(column, False)
+        items.sort(key=lambda x: key_fn(x[0]), reverse=reverse)
+        self._watchlist_sort_state[column] = not reverse
+        for i, (_, iid) in enumerate(items):
+            self.watchlist_tree.move(iid, "", i)
+
+    def _export_watchlist_csv(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            initialfile="watchlist.csv"
+        )
+        if not path:
+            return
+        try:
+            import csv
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["Coin", "Price", "24h %", "Market Cap", "Volume", "Rank"])
+                for iid in self.watchlist_tree.get_children():
+                    w.writerow(self.watchlist_tree.item(iid, "values"))
+            messagebox.showinfo("Success", f"CSV exported to {path}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"CSV export failed: {e}")
+
+    # -------------------------------------------------------------------------
+    # Targets Tab
+    # -------------------------------------------------------------------------
+    def _build_targets_tab(self, parent):
+        wrapper = card_frame(parent, padx=20, pady=15)
+        wrapper.pack(fill="both", expand=True, padx=15, pady=15)
+
+        section_title(wrapper, "Targets").pack(fill="x", pady=(0, 8))
+
+        controls = tk.Frame(wrapper, bg=COLOR_FG)
+        controls.pack(fill="x", pady=(0, 10))
+
+        self.targets_currency_var = tk.StringVar(value="USD")
+        ttk.Label(controls, text="Currency:", foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(10, 6))
+        self.targets_currency_combo = ttk.Combobox(
+            controls, textvariable=self.targets_currency_var,
+            values=SUPPORTED_CURRENCIES, state="readonly", width=12, style="Kaspa.TCombobox"
+        )
+        self.targets_currency_combo.pack(side="left")
+        self.targets_currency_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_targets())
+
+        ttk.Button(controls, text="Refresh", style="KaspaSmall.TButton",
+                   command=self._refresh_targets).pack(side="right", padx=10)
+        ttk.Button(controls, text="Export CSV", style="KaspaSmall.TButton",
+                   command=self._export_targets_csv).pack(side="right", padx=10)
+        ttk.Button(controls, text="Add Custom Target", style="KaspaSmall.TButton",
+                   command=self._add_custom_target_dialog).pack(side="right", padx=10)
+
+        columns = ("Target", "Required Price", "Required Market Cap", "vs BTC")
+        self.targets_tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=20)
+        headers = {
+            "Target": "Target Portfolio",
+            "Required Price": "Required KAS Price",
+            "Required Market Cap": "Required KAS Market Cap",
+            "vs BTC": "MCap vs. BTC",
+        }
+        for c in columns:
+            self.targets_tree.heading(c, text=headers[c], command=lambda col=c: self._sort_targets_table(col))
+            self.targets_tree.column(c, width=230 if c != "vs BTC" else 140, anchor="center")
+        self.targets_tree.tag_configure("even", background="#212121")
+        self.targets_tree.tag_configure("odd", background="#1b1b1b")
+        self.targets_tree.pack(fill="both", expand=True)
+
+        # store custom targets (in display currency) for this session
+        self._custom_targets_disp: List[float] = []
+
+    def _refresh_targets(self):
+        disp_ccy = self.targets_currency_var.get().upper() if hasattr(self, 'targets_currency_var') else 'USD'
+        sym = currency_symbol(disp_ccy)
+
+        # Clear
+        if hasattr(self, 'targets_tree'):
+            for iid in self.targets_tree.get_children():
+                self.targets_tree.delete(iid)
+        else:
+            return
+
+        # Gather inputs
+        try: kas_hold = float(self.entries["KAS Holdings:"].get().replace(",", ""))
+        except Exception: kas_hold = 0.0
+        try: price_usd = float(self.entries["Current Price (USD):"].get().replace(",", ""))
+        except Exception: price_usd = 0.0
+        try:
+            supply_b = float(self.entries["Circulating Supply (B):"].get().replace(",", ""))
+            circ_supply_kas = supply_b * 1_000_000_000
+        except Exception:
+            circ_supply_kas = 0.0
+        btc_market_cap = (self.fetched_data or {}).get("btc_market_cap", 0.0)
+
+        if kas_hold <= 0 or price_usd <= 0 or circ_supply_kas <= 0:
+            self.targets_tree.insert("", "end", values=("Enter valid inputs on Projection tab", "", "", ""))
+            return
+
+        # Targets in display currency
+        base_targets_disp = [100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000]
+        targets_disp = sorted(base_targets_disp + list(self._custom_targets_disp))
+        for i, t_disp in enumerate(targets_disp):
+            # Convert target to USD for computation
+            t_usd = disp_to_usd(t_disp, disp_ccy)
+            req_price_usd = t_usd / kas_hold if kas_hold > 0 else 0.0
+            req_mcap_usd = req_price_usd * circ_supply_kas
+            ratio = (req_mcap_usd / btc_market_cap) if btc_market_cap else 0.0
+            self.targets_tree.insert(
+                "", "end",
+                values=(
+                    fmt_money(sym, t_disp, 0),
+                    fmt_money(sym, usd_to_disp(req_price_usd, disp_ccy)),
+                    fmt_money(sym, usd_to_disp(req_mcap_usd, disp_ccy), 0),
+                    f"{ratio:.6f}" if ratio else "N/A",
+                ),
+                tags=("even" if i % 2 == 0 else "odd",)
+            )
+
+    def _sort_targets_table(self, column: str):
+        cols = list(self.targets_tree["columns"]) if hasattr(self, 'targets_tree') else []
+        if column not in cols:
+            return
+        col_idx = cols.index(column)
+        items = [(self.targets_tree.item(iid)["values"], iid) for iid in self.targets_tree.get_children()]
+
+        def key_fn(values):
+            val = values[col_idx]
+            if column in ("Target", "Required Price", "Required Market Cap"):
+                return (0, extract_number(val))
+            if column == "vs BTC":
+                s = str(val).strip()
+                if not s or s.upper() == "N/A":
+                    return (1, 0.0)
+                return (0, extract_number(s))
+            return (0, str(val))
+
+        if not hasattr(self, '_targets_sort_state'):
+            self._targets_sort_state = {}
+        reverse = self._targets_sort_state.get(column, False)
+        items.sort(key=lambda x: key_fn(x[0]), reverse=reverse)
+        self._targets_sort_state[column] = not reverse
+        for i, (_, iid) in enumerate(items):
+            self.targets_tree.move(iid, "", i)
+
+    def _add_custom_target_dialog(self):
+        disp_ccy = self.targets_currency_var.get().upper() if hasattr(self, 'targets_currency_var') else 'USD'
+        sym = currency_symbol(disp_ccy)
+        win = tk.Toplevel(self.root)
+        win.title("Add Custom Target")
+        win.geometry("360x160")
+        win.transient(self.root); win.grab_set()
+        try: win.iconbitmap(ICON_PATH)
+        except Exception: pass
+
+        container = tk.Frame(win, bg=COLOR_FG); container.pack(fill="both", expand=True)
+        ttk.Label(container, text=f"Enter target portfolio ({disp_ccy}):", background=COLOR_FG, foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold")).pack(padx=16, pady=(16, 6), anchor="w")
+        var = tk.StringVar(value=f"{sym}100,000")
+        entry = ttk.Entry(container, style="Kaspa.TEntry", width=22, textvariable=var)
+        entry.pack(padx=16, pady=(0, 10)); entry.focus_set()
+
+        def _ok():
+            try:
+                amt = extract_number(var.get())
+                if amt <= 0:
+                    raise ValueError
+                # store in display currency
+                self._custom_targets_disp.append(amt)
+                self._refresh_targets()
+                _toast("Custom target added", 1200)
+                win.destroy()
+            except Exception:
+                messagebox.showerror("Invalid value", "Please enter a positive amount.")
+
+        btns = tk.Frame(container, bg=COLOR_FG)
+        btns.pack(fill="x", pady=6)
+        ttk.Button(btns, text="Cancel", style="KaspaSmall.TButton", command=win.destroy).pack(side="right", padx=8)
+        ttk.Button(btns, text="Add", style="KaspaSmall.TButton", command=_ok).pack(side="right", padx=8)
+
+    def _export_targets_csv(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+            initialfile="targets.csv"
+        )
+        if not path:
+            return
+        try:
+            import csv
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["Target Portfolio", "Required KAS Price", "Required KAS Market Cap", "MCap vs. BTC"])
+                for iid in getattr(self, 'targets_tree').get_children():
+                    w.writerow(self.targets_tree.item(iid, "values"))
+            messagebox.showinfo("Success", f"CSV exported to {path}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"CSV export failed: {e}")
+
+    # -------------------------------------------------------------------------
+    # Scenarios Tab
+    # -------------------------------------------------------------------------
+    def _build_scenarios_tab(self, parent):
+        wrapper = card_frame(parent, padx=20, pady=15)
+        wrapper.pack(fill="both", expand=True, padx=15, pady=15)
+
+        section_title(wrapper, "Scenarios").pack(fill="x", pady=(0, 8))
+
+        controls = tk.Frame(wrapper, bg=COLOR_FG)
+        controls.pack(fill="x", pady=(0, 10))
+
+        self.scenarios_currency_var = tk.StringVar(value="USD")
+        ttk.Label(controls, text="Currency:", foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(10, 6))
+        self.scenarios_currency_combo = ttk.Combobox(
+            controls, textvariable=self.scenarios_currency_var,
+            values=SUPPORTED_CURRENCIES, state="readonly", width=12, style="Kaspa.TCombobox"
+        )
+        self.scenarios_currency_combo.pack(side="left")
+        self.scenarios_currency_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_scenarios())
+
+        ttk.Label(controls, text="Preset:", foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(20, 6))
+        self.scenario_preset_var = tk.StringVar(value="Base")
+        self.scenario_preset_combo = ttk.Combobox(
+            controls, textvariable=self.scenario_preset_var,
+            values=["Bear (0.5x)", "Base (1.0x)", "Bull (2.0x)", "Supercycle (5.0x)"],
+            state="readonly", width=20, style="Kaspa.TCombobox"
+        )
+        self.scenario_preset_combo.pack(side="left")
+        self.scenario_preset_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_scenarios())
+
+        ttk.Label(controls, text="Supply growth %:", foreground=COLOR_BG,
+                  font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(20, 6))
+        self.supply_growth_var = tk.StringVar(value="0")
+        self.supply_growth_entry = ttk.Entry(controls, style="Kaspa.TEntry", width=8, textvariable=self.supply_growth_var)
+        self.supply_growth_entry.pack(side="left")
+        self.supply_growth_entry.bind("<KeyRelease>", lambda e: self._refresh_scenarios())
+
+        ttk.Button(controls, text="Apply to Projection", style="KaspaSmall.TButton",
+                   command=self._apply_scenario_to_projection).pack(side="right", padx=10)
+
+        columns = ("Scenario", "Price", "Market Cap", "Your Portfolio")
+        self.scenarios_tree = ttk.Treeview(wrapper, columns=columns, show="headings", height=18)
+        headers = {
+            "Scenario": "Scenario",
+            "Price": "KAS Price",
+            "Market Cap": "KAS Market Cap",
+            "Your Portfolio": "Your Portfolio",
+        }
+        for c in columns:
+            self.scenarios_tree.heading(c, text=headers[c])
+            self.scenarios_tree.column(c, width=230 if c != "Scenario" else 250, anchor="center")
+        self.scenarios_tree.tag_configure("even", background="#212121")
+        self.scenarios_tree.tag_configure("odd", background="#1b1b1b")
+        self.scenarios_tree.pack(fill="both", expand=True)
+
+    def _refresh_scenarios(self):
+        disp_ccy = self.scenarios_currency_var.get().upper() if hasattr(self, 'scenarios_currency_var') else 'USD'
+        sym = currency_symbol(disp_ccy)
+        if not hasattr(self, 'scenarios_tree'):
+            return
+        for iid in self.scenarios_tree.get_children():
+            self.scenarios_tree.delete(iid)
+
+        # Inputs
+        try: kas_hold = float(self.entries["KAS Holdings:"].get().replace(",", ""))
+        except Exception: kas_hold = 0.0
+        try: price_usd = float(self.entries["Current Price (USD):"].get().replace(",", ""))
+        except Exception: price_usd = 0.0
+        try:
+            supply_b = float(self.entries["Circulating Supply (B):"].get().replace(",", ""))
+            circ_supply_kas = supply_b * 1_000_000_000
+        except Exception:
+            circ_supply_kas = 0.0
+
+        # Preset multiplier
+        name = self.scenario_preset_var.get() if hasattr(self, 'scenario_preset_var') else 'Base (1.0x)'
+        mult_map = {
+            "Bear (0.5x)": 0.5,
+            "Base (1.0x)": 1.0,
+            "Bull (2.0x)": 2.0,
+            "Supercycle (5.0x)": 5.0,
+        }
+        m = mult_map.get(name, 1.0)
+        try:
+            supply_growth_pct = float(self.supply_growth_var.get()) if hasattr(self, 'supply_growth_var') else 0.0
+        except Exception:
+            supply_growth_pct = 0.0
+
+        new_price_usd = price_usd * m
+        new_supply = circ_supply_kas * (1.0 + max(-1.0, supply_growth_pct / 100.0))
+        new_mcap_usd = new_price_usd * new_supply
+        portfolio_usd = kas_hold * new_price_usd
+
+        self.scenarios_tree.insert(
+            "", "end",
+            values=(
+                name,
+                fmt_money(sym, usd_to_disp(new_price_usd, disp_ccy)),
+                fmt_money(sym, usd_to_disp(new_mcap_usd, disp_ccy), 0),
+                fmt_money(sym, usd_to_disp(portfolio_usd, disp_ccy), 0),
+            ),
+            tags=("even",)
+        )
+
+    def _apply_scenario_to_projection(self):
+        # Compute scenario first
+        try: price_usd = float(self.entries["Current Price (USD):"].get().replace(",", ""))
+        except Exception: price_usd = 0.0
+        try:
+            supply_b = float(self.entries["Circulating Supply (B):"].get().replace(",", ""))
+        except Exception:
+            supply_b = 0.0
+        name = self.scenario_preset_var.get() if hasattr(self, 'scenario_preset_var') else 'Base (1.0x)'
+        mult_map = {"Bear (0.5x)": 0.5, "Base (1.0x)": 1.0, "Bull (2.0x)": 2.0, "Supercycle (5.0x)": 5.0}
+        m = mult_map.get(name, 1.0)
+        try:
+            supply_growth_pct = float(self.supply_growth_var.get()) if hasattr(self, 'supply_growth_var') else 0.0
+        except Exception:
+            supply_growth_pct = 0.0
+
+        new_price_usd = price_usd * m
+        new_supply_b = supply_b * (1.0 + max(-1.0, supply_growth_pct / 100.0))
+
+        # Apply into Projection inputs
+        try:
+            self.entries["Current Price (USD):"].delete(0, tk.END)
+            self.entries["Current Price (USD):"].insert(0, f"{new_price_usd:.6f}")
+            self.entries["Circulating Supply (B):"].delete(0, tk.END)
+            self.entries["Circulating Supply (B):"].insert(0, f"{new_supply_b:.6f}")
+            self.update_display_if_valid()
+            _toast("Scenario applied to Projection", 1400)
+        except Exception:
+            messagebox.showerror("Error", "Failed to apply scenario to Projection.")
 
     # Helpers for comparisons
     def _collect_current_inputs_for_compare(self):

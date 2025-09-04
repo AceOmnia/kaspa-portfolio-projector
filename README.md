@@ -43,10 +43,10 @@ If you do not have Python installed on your Windows computer, follow these steps
 ## Usage
 
 1. Clone this repository or download the script.
-2. Run the script using Python:
+2. Run the app using Python:
 
    ```sh
-   python kpp.py
+   python -m src.app
    ```
 
 3. Enter the required portfolio details in the GUI or fetch real-time data.
@@ -89,12 +89,12 @@ pip install pyinstaller
 
 I've compiled the Python application into an executable that can be run using the following command:
    ```sh
-   pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
+   pyinstaller --noconsole --onefile --name="Kaspa Portfolio Projector (KPP)" `
    --icon="pics\kaspa.ico" `
    --add-data "pics\kaspa.ico;pics" `
    --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" `
    --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
-   kpp.py
+   src/app.py
    ```
 
 The compiled file can be found in the `compiled/` directory. A checksum is included for verification.
