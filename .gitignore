@@ -39,5 +39,4 @@ venv.bak/
 Thumbs.db
 
 # Project specific
-compiled/
 *.log
