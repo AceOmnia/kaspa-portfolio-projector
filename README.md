@@ -2,6 +2,14 @@
 
 A Python application for generating Kaspa portfolio projections and reports. This tool provides a user-friendly GUI where users can input their Kaspa holdings, current market price, and circulating supply to generate a comprehensive portfolio projection report. The application also automatically fetches real-time Kaspa price data, circulating supply, Bitcoin market cap, and exchange rates from CoinGecko and a currency FX API, with robust error handling and status feedback. Users can export detailed projections in both PDF and CSV formats.
 
+## Changelog
+
+- 1.2.3
+  - Moved all source code under `src/` and updated run/build commands
+  - Added Watchlist, Targets (with custom targets), and Scenarios tabs
+  - Added retry toasts and minor UX fixes (debounced validation tweaks)
+  - No behavior changes beyond new tabs; existing features preserved
+
 ## Features
 
 - Automatically fetches real-time Kaspa price, circulating supply, Bitcoin market cap, and fiat exchange rates on startup.
@@ -43,10 +51,10 @@ If you do not have Python installed on your Windows computer, follow these steps
 ## Usage
 
 1. Clone this repository or download the script.
-2. Run the script using Python:
+2. Run the app using Python:
 
    ```sh
-   python kpp.py
+   python -m src.app
    ```
 
 3. Enter the required portfolio details in the GUI or fetch real-time data.
@@ -89,12 +97,12 @@ pip install pyinstaller
 
 I've compiled the Python application into an executable that can be run using the following command:
    ```sh
-   pyinstaller --noconsole --onefile --name="Kaspa Projection Projection (KPP)" `
+   pyinstaller --noconsole --onefile --name="Kaspa Portfolio Projector (KPP)" `
    --icon="pics\kaspa.ico" `
    --add-data "pics\kaspa.ico;pics" `
    --add-data "pics\Kaspa-LDSP-Dark-Full-Color.png;pics" `
    --add-data "pics\Kaspa-LDSP-Dark-Reverse.png;pics" `
-   kpp.py
+   src/app.py
    ```
 
 The compiled file can be found in the `compiled/` directory. A checksum is included for verification.
