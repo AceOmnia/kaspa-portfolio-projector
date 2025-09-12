@@ -1,4 +1,4 @@
-File Name : 'Kaspa Portfolio Projection (KPP).exe'
-Version   : 1.0.1
+File Name : 'Kaspa Portfolio Projector (KPP).exe'
+Version   : 1.1.0
 Algorithm : SHA256
-Hash      : 040F4CEEF34B4883589887396732EB04C2E4BA48D458CE024FD31944F877BE61
+Hash      : B92525855E0C523BAF0F6340FF03DF5DCABE1F926CD0EFE62900874FA11510AD
