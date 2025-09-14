@@ -126,4 +126,4 @@ Special thanks to the Kaspa community for supporting open-source development.
 
 ---
 
-Developed by the Kaspa Community 🚀
+Developed by a member of the Kaspa Community 🚀
