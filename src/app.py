@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Kaspa Portfolio Projector (KPP) — v1.1.0 (two-tab + fast fetch + hover + sortable compare + shorter slider)
+# Kaspa Portfolio Projector (KPP) — v1.1.1 (two-tab + fast fetch + hover + sortable compare + shorter slider)
 
 """
 Kaspa Portfolio Projector (KPP)
@@ -8,6 +8,11 @@ Kaspa Portfolio Projector (KPP)
 A Tkinter-based desktop application for projecting and analyzing the value of a Kaspa (KAS) portfolio
 across varying market prices and market capitalizations. Provides real-time data fetching from CoinGecko
 and exchange rate APIs, dynamic currency conversion, and export capabilities for PDF and CSV reports.
+
+v1.1.1:
+- Fixed tab focus outline issue that appeared after repeated clicking
+- Added ATH data toggle checkbox in Comparisons tab
+- Improved tab styling and event handling
 
 v1.1.0:
 - Slider shortened (length 440) so the 'KAS Market Cap' field is no longer clipped.
@@ -244,6 +249,14 @@ def apply_modern_style(root):
     style.map("Kaspa.Vertical.TScale",
               bordercolor=[("focus", COLOR_FG)],
               background=[("focus", COLOR_FG)])
+
+    # Fix tab focus outline issue - comprehensive approach
+    style.configure("TNotebook", focuscolor="none")
+    style.configure("TNotebook.Tab", focuscolor="none", lightcolor="none", darkcolor="none")
+    style.map("TNotebook.Tab", 
+              focuscolor=[("!focus", "none"), ("focus", "none"), ("active", "none"), ("selected", "none")],
+              lightcolor=[("!focus", "none"), ("focus", "none"), ("active", "none"), ("selected", "none")],
+              darkcolor=[("!focus", "none"), ("focus", "none"), ("active", "none"), ("selected", "none")])
 
 def card_frame(parent, **kw):
     bg = kw.pop("bg", COLOR_FG)
@@ -506,6 +519,10 @@ class KaspaPortfolioApp:
         # Body container + notebook
         self.body_container = tk.Frame(root, bg="#121212"); self.body_container.pack(fill="both", expand=True)
         self.notebook = ttk.Notebook(self.body_container); self.notebook.pack(fill="both", expand=True)
+        
+        # Prevent tab focus outline completely
+        self.notebook.bind("<Button-1>", lambda e: self.notebook.focus_set())
+        self.notebook.bind("<ButtonRelease-1>", lambda e: self.notebook.focus_set())
         self.tab_projection = tk.Frame(self.notebook, bg="#121212")
         self.tab_compare = tk.Frame(self.notebook, bg="#121212")
         self.notebook.add(self.tab_projection, text="Projection")
@@ -1343,16 +1360,28 @@ class KaspaPortfolioApp:
         controls = tk.Frame(wrapper, bg=COLOR_FG)
         controls.pack(fill="x", pady=(0, 10))
 
+        # Left side controls
+        left_controls = tk.Frame(controls, bg=COLOR_FG)
+        left_controls.pack(side="left")
+
         self.compare_currency_var = tk.StringVar(value="USD")
-        ttk.Label(controls, text="Currency:", foreground=COLOR_BG,
+        ttk.Label(left_controls, text="Currency:", foreground=COLOR_BG,
                   font=("Segoe UI", 11, "bold"), background=COLOR_FG).pack(side="left", padx=(10, 6))
         self.compare_currency_combo = ttk.Combobox(
-            controls, textvariable=self.compare_currency_var,
+            left_controls, textvariable=self.compare_currency_var,
             values=SUPPORTED_CURRENCIES, state="readonly", width=12, style="Kaspa.TCombobox"
         )
         self.compare_currency_combo.pack(side="left")
         self.compare_currency_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_comparisons())
 
+        # ATH toggle checkbox
+        self.show_ath_var = tk.BooleanVar(value=False)
+        ath_checkbox = ttk.Checkbutton(left_controls, text="Show ATH data", 
+                                      variable=self.show_ath_var, style="Kaspa.TCheckbutton",
+                                      command=self._refresh_comparisons)
+        ath_checkbox.pack(side="left", padx=(20, 0))
+
+        # Right side buttons
         ttk.Button(controls, text="Refresh", style="KaspaSmall.TButton",
                    command=self._refresh_comparisons).pack(side="right", padx=10)
         ttk.Button(controls, text="Export CSV", style="KaspaSmall.TButton",
@@ -1916,7 +1945,8 @@ class KaspaPortfolioApp:
                     "multiple": multiple,
                 })
 
-            if ath_price > 0:
+            # Only show ATH data if checkbox is checked
+            if self.show_ath_var.get() and ath_price > 0:
                 circ_other = float(info.get("circulating_supply") or 0.0)
                 if circ_other > 0:
                     ref_ath_proxy = ath_price * circ_other

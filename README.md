@@ -4,6 +4,11 @@ A Python application for generating Kaspa portfolio projections and reports. Thi
 
 ## Changelog
 
+- 1.1.1
+  - Fixed tab focus outline issue that appeared after repeated clicking
+  - Added ATH data toggle checkbox in Comparisons tab
+  - Improved tab styling and event handling
+
 - 1.1.0
   - Moved all source code under `src/` and updated run/build commands
   - Added Watchlist, Targets (with custom targets), and Scenarios tabs
